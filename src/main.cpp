@@ -6,7 +6,7 @@ int myFunction(int, int);
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  dealay(1000);
+  delay(1000);
   Serial.println("Auto-Drawer Booting...");
 }
 
