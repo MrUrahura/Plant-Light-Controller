@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include "Pins.h"
 #include "Plant.h"
 #include "LightSensor.h"
@@ -18,7 +17,7 @@ float currentDLI;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  
+
   sensor.begin();
   blinds.begin();
 
@@ -27,7 +26,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  currentLux = lightMeter.readLightLevel();
+  currentLux = sensor.readLightLevel();
   currentPPFD = currentLux / 54.0; // Convert lux to PPFD (approximation)
   currentDLI += currentPPFD * 60.0 / 1000000.0;
 

@@ -1,7 +1,7 @@
-#include "ServoController.h"
-#include "Pins.h"
 #include <Wire.h>
 #include <ESP32Servo.h>
+#include "ServoController.h"
+#include "Pins.h"
 
 Servo topServo;
 Servo leftServo;
