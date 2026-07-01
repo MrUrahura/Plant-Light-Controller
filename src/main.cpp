@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include "Pins.h"
 #include "Plant.h"
 #include "LightSensor.h"
