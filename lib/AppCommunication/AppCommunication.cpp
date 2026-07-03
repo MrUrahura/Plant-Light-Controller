@@ -9,9 +9,12 @@ struct SetupData {
     String apiKey;
     double latitude;
     double longitude;
+    String timeZoneString;
+    int startHour;
 };
 
-AppCommunication::AppCommunication()
+AppCommunication::AppCommunication(SettingsManager& settings)
+    : settingsManager(settings)
 {
 
 }

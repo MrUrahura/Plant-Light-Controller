@@ -7,5 +7,5 @@ public:
     void update();
 
 private:
-    const SettingsManager& settingsManager;
+    SettingsManager& settings;
 };
