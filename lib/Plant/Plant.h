@@ -10,7 +10,7 @@ public:
     int getTargetDLI();
     int getMinDLI();
     int getMaxDLI();
-    int getPhotoperiod();
+    const int& getPhotoperiod();
 
 private:
     String plantName;

@@ -9,3 +9,7 @@ void Plant::setPlant(const String& name, const String& type, int minDLI, int max
     this->maxDLI = maxDLI;
     this->photoperiod = photoperiod;
 }
+
+const int& Plant::getPhotoperiod() {
+    return photoperiod;
+}
