@@ -11,7 +11,7 @@ void NetworkManager::begin(){
     connectWiFi();
 }
 
-bool NetworkManager::isConfigured() {
+bool NetworkManager::isConfigured() const {
     return settings.isWiFiConfigured();
 }
 
@@ -33,7 +33,7 @@ void NetworkManager::connectWiFi() {
     lastReconnectAttempt = millis();
 }
 
-bool NetworkManager::isConnected() {
+bool NetworkManager::isConnected() const {
     return WiFi.status() == WL_CONNECTED;
 }
 

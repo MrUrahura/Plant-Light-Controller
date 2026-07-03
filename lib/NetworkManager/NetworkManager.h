@@ -6,8 +6,8 @@ public:
     NetworkManager(const SettingsManager& settings);
     void begin();
     void connectWiFi();
-    bool isConnected();
-    bool isConfigured();
+    bool isConnected() const;
+    bool isConfigured() const;
 
 private:
     const SettingsManager& settings;
