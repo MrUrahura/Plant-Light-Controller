@@ -4,9 +4,9 @@
 class LightSensor {
 public:
     bool begin();
-    float readPPFDLevel();
+    double readPPFDLevel () const;
 
 private:
-    BH1750 meter;
-    float readLuxLevel();
+    BH1750& meter;
+    float readLuxLevel() const;
 };

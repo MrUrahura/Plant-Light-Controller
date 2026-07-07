@@ -8,12 +8,12 @@ bool LightSensor::begin() {
     return meter.begin();
 }
 
-float LightSensor::readPPFDLevel() {
+double LightSensor::readPPFDLevel() const {
     float lux = readLuxLevel();
-    return lux / 54.0; // Convert lux to PPFD (approximation)
+    return static_cast<double>(lux) / 54.0; // Convert lux to PPFD (approximation)
 }
 
 // Private helper function to read the light level in lux
-float LightSensor::readLuxLevel() {
+float LightSensor::readLuxLevel() const {
     return meter.readLightLevel();
 }
