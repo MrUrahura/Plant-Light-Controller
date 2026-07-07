@@ -4,32 +4,33 @@
 #include "ServoController.h"
 #include "WeatherForecast.h"
 #include "TimeManager.h"
-#include "DLIController.h"
+#include "DLITracker.h"
 #include "SettingsManager.h"
 #include "NetworkManager.h"
 #include "AppCommunication.h"
+#include "LightController.h"
 
 // Components declarations
 Plant currentPlant;
 LightSensor sensor;
-ServoController blinds;
-DLITracker dliTracker;
-AppCommunication appComm;
+ServoController shades;
 SettingsManager settings;
+DLITracker dliTracker(sensor);
 NetworkManager network(settings);
+AppCommunication appComm(currentPlant, settings);
 TimeManager timeManager(settings, network, currentPlant.getPhotoperiod());
 WeatherForecast weather(settings, network, timeManager);
+LightController lightControl(currentPlant, sensor, shades, dliTracker, weather, timeManager);
 
 // Enum to represent the state of the system
 enum class SystemState {
-  BOOTING,
-  WAITING_FOR_SETUP,
+  BLUETOOTH_SETUP,
   CONNECTING_WIFI,
   SYNCING_TIME,
   FETCHING_WEATHER,
   READY
 };
-SystemState currentState = SystemState::BOOTING;
+SystemState currentState = SystemState::BLUETOOTH_SETUP;
 
 void setup() {
   // put your setup code here, to run once:
