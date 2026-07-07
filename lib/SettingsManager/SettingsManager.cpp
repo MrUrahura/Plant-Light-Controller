@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Preferences.h>
 #include "SettingsManager.h"
 
@@ -57,7 +56,7 @@ void SettingsManager::load() {
     apiKey = prefs.getString("apiKey", "");
     latitude = prefs.getDouble("latitude", 0.0);
     longitude = prefs.getDouble("longitude", 0.0);
-    timeZoneString = pregs.getString("timeZoneString", "");
+    timeZoneString = prefs.getString("timeZoneString", "");
     prefs.end();
 }
 
@@ -69,7 +68,7 @@ const String& SettingsManager::getPassword() const {
     return password;
 }
 
-const String& SettingsManager::getApiKey() const {
+const String& SettingsManager::getAPIKey() const {
     return apiKey;
 }
 
@@ -93,6 +92,6 @@ bool SettingsManager::isFullConfigured() const {
     return !ssid.isEmpty() && !password.isEmpty() && !apiKey.isEmpty() && !(latitude == 0.0 && longitude == 0.0);
 }
 
-bool SettingsManager::isWiFiConfigured() const {
+bool SettingsManager::isNetworkConfigured() const {
     return !ssid.isEmpty() && !password.isEmpty();
 }

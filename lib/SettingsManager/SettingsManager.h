@@ -8,17 +8,17 @@ public:
     void load();
     void setWiFi(const String& ssid, const String& password);
     void setLocation(double latitude, double longitude);
-    void setApiKey(const String& apiKey);
+    void setAPIKey(const String& apiKey);
     void setTimeZoneString(const String& tzString);
     const String& getSSID() const;
     const String& getPassword() const;
-    const String& getApiKey() const;
+    const String& getAPIKey() const;
     double getLatitude() const;
     double getLongitude() const;
     const String& getTimeZoneString() const;
     int getStartHour() const;
     bool isFullConfigured() const;
-    bool isWiFiConfigured() const;
+    bool isNetworkConfigured() const;
 
 private:
     Preferences prefs;
