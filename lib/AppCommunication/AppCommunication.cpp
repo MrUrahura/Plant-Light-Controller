@@ -1,7 +1,6 @@
 #include <Arduino.h>
-#include "SettingsManager.h"
+#include "AppCommunication.h"
 
-// Variable declarations
 struct SetupData {
     Plant plant;
     String ssid;
@@ -13,10 +12,10 @@ struct SetupData {
     int startHour;
 };
 
-AppCommunication::AppCommunication(SettingsManager& settings)
-    : settingsManager(settings)
+AppCommunication::AppCommunication(Plant& plant, SettingsManager& settings)
+    : plant(plant), settings(settings)
 {
-
+    
 }
 
 void AppCommunication::update() {
