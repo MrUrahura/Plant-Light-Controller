@@ -11,6 +11,7 @@ public:
     void getCurrentDate(int &year, int &month, int &day) const;
     int getHour() const;
     int getDayOfYear() const;
+    int getPhotoperiodStartTime() const;
     int getPhotoperiodEndTime() const;
     String getCurrentDateString() const;
     bool withinPhotoperiod() const;
