@@ -12,7 +12,7 @@ void NetworkManager::begin(){
 }
 
 bool NetworkManager::isConfigured() const {
-    return settings.isWiFiConfigured();
+    return settings.isNetworkConfigured();
 }
 
 void NetworkManager::connectWiFi() {
@@ -41,8 +41,9 @@ void NetworkManager::handle() {
     // Non-blocking reconnection logic
     if (!isConnected() && isConfigured()) {
         unsigned long currentMillis = millis();
-        
         if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
+            lastReconnectAttempt = currentMillis; 
+
             Serial.println("NetworkManager: Connection lost. Retrying...");
             connectWiFi(); 
         }

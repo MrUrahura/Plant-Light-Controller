@@ -8,6 +8,7 @@ public:
     void connectWiFi();
     bool isConnected() const;
     bool isConfigured() const;
+    void handle();
 
 private:
     const SettingsManager& settings;
