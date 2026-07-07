@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include "DLITracker.h"
 
-DLITracker::DLITracker() {
+DLITracker::DLITracker(const LightSensor& sensor)
+    : sensor(sensor)
+{
     reset();
 }
 
@@ -10,11 +12,11 @@ void DLITracker::reset() {
     currentDLI = 0.0;
 }
 
-void DLITracker::update(float currentPPFD) {
+void DLITracker::update() {
     // Update DLI based on the current PPFD reading
-    currentDLI += (currentPPFD * SAMPLE_PERIOD) / 1000000.0f; // Convert PPFD to DLI (mol/m²/day)
+    currentDLI += (sensor.readPPFDLevel() * SAMPLE_PERIOD) / 1000000.0f; // Convert PPFD to DLI (mol/m²/day)
 }
 
-double DLITracker::getCurrentDLI() {
+double DLITracker::getCurrentDLI() const {
     return currentDLI;
 }
