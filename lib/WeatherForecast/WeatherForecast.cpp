@@ -9,20 +9,35 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-WeatherForecast::WeatherForecast(const SettingsManager& settings, const NetworkManager& network, const TimeManager& timeManager)
+WeatherForecast::WeatherForecast(const SettingsManager& settings, NetworkManager& network, const TimeManager& timeManager)
     : settings(settings), network(network), timeManager(timeManager) { }
 
 void WeatherForecast::update() {
      // Calculate remaining DLI for the current hour to the end of the photoperiod
-    calculateRemainingDLI(timeManager.getHour(), timeManager.getPhotoperiodEndTime());
+    calculateRemainingDLI();
 }
 
-double WeatherForecast::getRemainingDLI() {
+double WeatherForecast::getCompleteDayDLI() const {
+    return completeDayDLI;
+}
+
+double WeatherForecast::getPhotoperiodDLI() const {
+    return photoperiodDLI;
+}
+
+double WeatherForecast::getRemainingDLI() const {
     return remainingDLI;
 }
 
+const std::array<double, 24>& WeatherForecast::getHourlyDLI() const {
+    return hourlyDLI;
+}
+
 // Private helper functions
-void WeatherForecast::calculateRemainingDLI(int startHour, int endHour) {    
+void WeatherForecast::calculateRemainingDLI() {    
+    int startHour = timeManager.getPhotoperiodStartTime();
+    int endHour = timeManager.getPhotoperiodEndTime();
+    
     // Guard rails to prevent buffer overflows or index out of bounds errors
     if (startHour < 0) startHour = 0;
     if (endHour > 23) endHour = 23;
@@ -39,7 +54,7 @@ void WeatherForecast::calculateRemainingDLI(int startHour, int endHour) {
         client.setInsecure();
         
         HTTPClient http;
-        http.begin(client, "http://weatherapi.com/v1/forecast.json?key=" + String(settings.apiKey) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&dt=" + timeManager.getCurrentDateString());
+        http.begin(client, "http://weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&dt=" + timeManager.getCurrentDateString());
         int httpCode = http.GET();
         if (httpCode == HTTP_CODE_OK) {
             String payload = http.getString();
@@ -62,10 +77,12 @@ void WeatherForecast::calculateRemainingDLI(int startHour, int endHour) {
 
             JsonArray hourlyArray = doc["forecast"]["forecastday"][0]["hour"];
             // Reset DLI values before processing new data
-            totalDLI = 0.0;
+            completeDayDLI = 0.0;
             remainingDLI = 0.0;
             for (int h = 0; h <= 23; h++) {
+                // Get the weather data for the hour
                 int cloudCover = hourlyArray[h]["cloud"].as<int>();
+                String conditionText = hourlyArray[h]["condition"].as<String>();
 
                 // Calculate Solar Geometry
                 double clearSkyGHI = calculateClearSkyGHI(h);
@@ -97,19 +114,18 @@ void WeatherForecast::calculateRemainingDLI(int startHour, int endHour) {
                 double ppfd = actualGHI * 0.45 * 4.6;
 
                 // Accumulate into daily light integral moles
-                double hourlyDLI = ppfd * 3600.0 / 1000000.0;
-                totalDLI += hourlyDLI;
+                double hourDLI = ppfd * 3600.0 / 1000000.0;
+                completeDayDLI += hourDLI;
+                hourlyDLI[h] = hourDLI;
                 if (h >= startHour && h <= endHour) {
-                    remainingDLI += hourlyDLI;
+                    photoperiodDLI += hourDLI;
+                    if(h >= timeManager.getHour()) {
+                        remainingDLI += hourDLI;
+                    }
                 }
             }
-            Serial.print("Total DLI for ");
-            Serial.print(date);
-            Serial.print(": ");
-            Serial.println(totalDLI);
         } else {
-            Serial.print("Error on HTTP request: ");
-            Serial.println(httpResponseCode);
+            Serial.print("Error on HTTP request.");
         }
         http.end();
     } else {
@@ -120,7 +136,7 @@ void WeatherForecast::calculateRemainingDLI(int startHour, int endHour) {
 
 // Function to calculate clear-sky global horizontal irradiance (GHI) in W/m²
 // Uses basic solar geometry for a given latitude, day of year, and hour
-double WeatherForecast::calculateClearSkyGHI(int hour) {
+double WeatherForecast::calculateClearSkyGHI(int hour) const {
     double latRad = settings.getLatitude() * M_PI / 180.0;
     
     // Declination angle of the sun

@@ -5,16 +5,21 @@
 
 class WeatherForecast {
 public:
-    WeatherForecast(const SettingsManager& settings, const NetworkManager& network, const TimeManager& timeManager);
-    bool update();
-    float getRemainingDLI();
+    WeatherForecast(const SettingsManager& settings, NetworkManager& network, const TimeManager& timeManager);
+    void update();
+    double getCompleteDayDLI() const;
+    double getPhotoperiodDLI() const;
+    double getRemainingDLI() const;
+    const std::array<double, 24>& getHourlyDLI() const;
 
 private:
     const SettingsManager& settings;
-    const NetworkManager& network;
+    NetworkManager& network;
     const TimeManager& timeManager;
-    double totalDLI;
+    double completeDayDLI;
+    double photoperiodDLI;
     double remainingDLI;
-    void calculateRemainingDLI(int startHour, int endHour);
-    double calculateClearSkyGHI(double latitude, int dayOfYear, int hour);
+    std::array<double, 24> hourlyDLI;
+    void calculateRemainingDLI();
+    double calculateClearSkyGHI(int hour) const;
 };
