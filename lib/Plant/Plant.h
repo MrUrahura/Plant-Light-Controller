@@ -5,18 +5,20 @@ class Plant {
 public:
     void setPlant(const String& name, const String& type, int minDLI, int maxDLI, int photoperiod);
 
-    String getPlantName();    
-    String getPlantType();    
-    int getTargetDLI();
-    int getMinDLI();
-    int getMaxDLI();
-    const int& getPhotoperiod();
+    const String& getName() const;
+    const String& getType() const;
+    double getTargetDLI() const;
+    int getMinDLI() const;
+    int getMaxDLI() const;
+    const int& getPhotoperiod() const;
+    double getTargetPPFD() const; 
 
 private:
-    String plantName;
-    String plantType;
-    int targetDLI;
+    String name;
+    String type;
+    double targetDLI;
     int minDLI;
     int maxDLI;
     int photoperiod;
+    double targetPPFD;
 };
