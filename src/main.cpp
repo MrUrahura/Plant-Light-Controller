@@ -15,19 +15,16 @@ Plant currentPlant;
 LightSensor sensor;
 ServoController shades;
 SettingsManager settings;
-DLITracker dliTracker(sensor);
 NetworkManager network(settings);
 AppCommunication appComm(currentPlant, settings);
 TimeManager timeManager(settings, network, currentPlant.getPhotoperiod());
+DLITracker dliTracker(sensor, timeManager);
 WeatherForecast weather(settings, network, timeManager);
 LightController lightControl(currentPlant, sensor, shades, dliTracker, weather, timeManager);
 
 // Enum to represent the state of the system
 enum class SystemState {
   BLUETOOTH_SETUP,
-  CONNECTING_WIFI,
-  SYNCING_TIME,
-  FETCHING_WEATHER,
   READY
 };
 SystemState currentState = SystemState::BLUETOOTH_SETUP;
@@ -37,12 +34,17 @@ void setup() {
   Serial.begin(115200);
 
   // Initialize components along with their "begin" or "load" method
+  currentPlant.loadPlant();
   settings.load();
-  network.begin();
+  sensor.begin();
+  shades.begin();
+  dliTracker.loadDLI();
+  appComm.begin();
 
-  if (settings.isFullConfigured())
+  if (currentPlant.isConfigured() && settings.isFullConfigured())
   {
-    currentState = SystemState::CONNECTING_WIFI;
+    network.begin();
+    currentState = SystemState::READY;
   }
   else
   {
@@ -53,45 +55,67 @@ void setup() {
 }
 
 void loop() {
-  network.handle(); // Handle network reconnections if needed
+  // --- GLOBAL SYSTEM LISTENERS ---
+  // Keep background network management always running
+  network.handle();
+  // Keep the Bluetooth interface with the app up to listen for changes from the app
+  appComm.update();
 
+  // --- STATE MACHINE ---
   // Check the system state and perform actions accordingly
   switch (currentState) {
     case SystemState::BLUETOOTH_SETUP:
-      Serial.println("Waiting for Bluetooth setup...");
-      // Handled when user configures the device via Bluetooth
-      currentState = SystemState::CONNECTING_WIFI;
-      break;
+      // Periodically print a status message to the console every 3 seconds
+      static unsigned long lastBluetoothLog = 0;
+      if (millis() - lastBluetoothLog > 3000) {
+          Serial.println("System: Device unconfigured. Awaiting JSON payload from smartphone app...");
+          lastBluetoothLog = millis();
+      }
 
-    case SystemState::CONNECTING_WIFI:
-      Serial.println("Connecting to WiFi...");
-      // Attempt to connect to wifi (maybe not necessary due to handle() in loop, but ensures connection attempt)
-      network.connectWiFi();
-      if (network.isConnected()) {
-        Serial.println("WiFi connected.");
-        currentState = SystemState::SYNCING_TIME;
+      // Check if the smartphone app has filled all the required slots
+      if (currentPlant.isConfigured() && settings.isFullConfigured()) {
+          Serial.println("System: Configuration received via Bluetooth!");
+          Serial.println("System: Initializing WiFi connection and transitioning to READY...");
+          
+          // Start the background WiFi engine now that credentials exist
+          network.begin(); 
+          
+          // Push the state machine forward!
+          currentState = SystemState::READY; 
       }
       break;
 
-    case SystemState::SYNCING_TIME:
-      Serial.println("Syncing time...");
-      // Call TimeManager's begin function to sync time
-      timeManager.begin();
-      currentState = SystemState::FETCHING_WEATHER;
-      break;
-
-    case SystemState::FETCHING_WEATHER:
-      Serial.println("Fetching weather data...");
-      // Call WeatherForecast's update function to fetch weather data
-      weather.update();
-      currentState = SystemState::READY;
-      break;
-
     case SystemState::READY:
-      Serial.println("System is ready.");
-      // Perform regular operations like reading sensors and controlling blinds
+      // --- TIME SYNC MANAGER ---
+      // Periodically attempts an NTP sync if the internal clock is uninitialized
+      static unsigned long lastTimeSync = 0;
+      if (!timeManager.isTimeSynced() && millis() - lastTimeSync > 10000) {
+          if (network.isConnected()) {
+              Serial.println("System: Internal clock invalid. Re-attempting NTP Time Sync...");
+              timeManager.begin();
+              lastTimeSync = millis();
+          }
+      }
+
+      // --- CLOUD WEATHER ENGINE (Every 15 minutes) ---
+      static unsigned long lastWeatherUpdate = 0;
+      if (millis() - lastWeatherUpdate > 900000) { // 15 mins
+          if (network.isConnected() && timeManager.isTimeSynced()) {
+              Serial.println("System: Updating weather forecast curves...");
+              weather.update();
+              lastWeatherUpdate = millis();
+          }
+      } 
+
+      // --- HARDWARE OPTIMIZATION CALCULATOR (Every 5 minutes) ---
+      static unsigned long lastStateOptimize = 0;
+      if (millis() - lastStateOptimize > 300000) { // 5 mins
+          if (timeManager.isTimeSynced()) {
+            Serial.println("System: Recalculating optimum window blind positioning...");
+            lightControl.optimizeState();
+          }
+          lastStateOptimize = millis();
+      }
       break;
   }
-
-  delay(1000);
 }
