@@ -1,4 +1,3 @@
-#include <Preferences.h>
 #include "SettingsManager.h"
 
 SettingsManager::SettingsManager() {
