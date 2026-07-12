@@ -1,5 +1,6 @@
 #pragma once
 #include <ESP32Servo.h>
+#include <Preferences.h>
 
 class ServoController {
 public:
@@ -18,12 +19,40 @@ public:
     bool areShadesClosed(ShadeID shades) const;
     void setShades(ShadeID shades);
     void setShades(uint8_t shades);
+    void saveState();
 
 private:
     Servo topServo;
     Servo leftServo;
     Servo rightServo;
     uint8_t shadeState;
+    Preferences prefs;
+
+    // Eventually, instead of hardcoding the times, use the app to calibrate them
+    // Or implement an encoder or limit switches to control distance
+    static constexpr uint8_t SERVO_STOP = 90;
+    static constexpr uint8_t FORWARD_SPEED = 180;
+    static constexpr uint8_t REVERSE_SPEED = 0;
+
+    static constexpr uint32_t TOP_OPEN_TIME_MS = 4400;
+    static constexpr uint32_t TOP_CLOSE_TIME_MS = 4350;
+
+    static constexpr uint32_t LEFT_OPEN_TIME_MS = 6900;
+    static constexpr uint32_t LEFT_CLOSE_TIME_MS = 6850;
+
+    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 6900;
+    static constexpr uint32_t RIGHT_CLOSE_TIME_MS = 6850;
+
+    bool topMoving;
+    bool leftMoving;
+    bool rightMoving;
+    uint32_t topStopTime;
+    uint32_t leftStopTime;
+    uint32_t rightStopTime;
+
+    void moveServo(Servo& servo, uint8_t speed, uint32_t timeMs);
+    bool isMoving() const;
+    void moveLoop();
 };
 
 // Enable bitwise operators for our enum class so the code looks clean
