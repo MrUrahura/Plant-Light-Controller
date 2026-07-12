@@ -7,6 +7,7 @@ class TimeManager {
 public:
     TimeManager(const SettingsManager& settings, const NetworkManager& network, const int& photoperiod);
     void begin();
+    bool isTimeSynced() const;
     void getCurrentTime(int &hour, int &minute, int &second) const;
     void getCurrentDate(int &year, int &month, int &day) const;
     int getHour() const;
@@ -15,6 +16,7 @@ public:
     int getPhotoperiodEndTime() const;
     String getCurrentDateString() const;
     bool withinPhotoperiod() const;
+    time_t getUnixTime() const;
 
 private:
     const SettingsManager& settings;
