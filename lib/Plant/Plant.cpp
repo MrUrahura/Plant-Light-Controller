@@ -9,6 +9,19 @@ void Plant::setPlant(const String& name, const String& type, int minDLI, int max
     this->maxDLI = maxDLI;
     this->photoperiod = photoperiod;
     this->targetPPFD = targetDLI * 1000000.0 / (photoperiod * 3600.0);
+
+    prefs.begin("plant", false);
+    prefs.putDouble("targetDLI", targetDLI);
+    prefs.putUInt("photoperiod", photoperiod);
+    prefs.end();
+}
+
+void Plant::loadPlant(){
+    prefs.begin("plant", true);
+    targetDLI = prefs.getDouble("targetDLI", 0.0);
+    photoperiod = prefs.getUInt("photoperiod", 0);
+    prefs.end();
+    targetPPFD = targetDLI * 1000000.0 / (photoperiod * 3600.0);
 }
 
 const String& Plant::getName() const {
@@ -37,4 +50,8 @@ const int& Plant::getPhotoperiod() const {
 
 double Plant::getTargetPPFD() const {
     return targetPPFD;
+}
+
+bool Plant::isConfigured() const {
+    return targetDLI != 0.0 && photoperiod != 0 && targetPPFD != 0.0;
 }

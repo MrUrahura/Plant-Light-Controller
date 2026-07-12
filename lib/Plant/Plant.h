@@ -1,9 +1,11 @@
 #pragma once
 #include <Arduino.h>
+#include <Preferences.h>
 
 class Plant {
 public:
     void setPlant(const String& name, const String& type, int minDLI, int maxDLI, int photoperiod);
+    void loadPlant();
 
     const String& getName() const;
     const String& getType() const;
@@ -12,6 +14,7 @@ public:
     int getMaxDLI() const;
     const int& getPhotoperiod() const;
     double getTargetPPFD() const; 
+    bool isConfigured() const;
 
 private:
     String name;
@@ -21,4 +24,5 @@ private:
     int maxDLI;
     int photoperiod;
     double targetPPFD;
+    Preferences prefs;
 };
