@@ -7,6 +7,6 @@ public:
     double readPPFDLevel () const;
 
 private:
-    BH1750& meter;
+    BH1750 meter;
     float readLuxLevel() const;
 };

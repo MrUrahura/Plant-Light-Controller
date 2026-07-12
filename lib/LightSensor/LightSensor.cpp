@@ -10,10 +10,17 @@ bool LightSensor::begin() {
 
 double LightSensor::readPPFDLevel() const {
     float lux = readLuxLevel();
+
+    if(lux < 0) {
+        Serial.println("LightSensor: Unexpected lux reading below 0.");
+        return 0.0;
+    }
+
     return static_cast<double>(lux) / 54.0; // Convert lux to PPFD (approximation)
 }
 
 // Private helper function to read the light level in lux
 float LightSensor::readLuxLevel() const {
-    return meter.readLightLevel();
+    // const_cast is needed because the library's readLightLevel() is not marked const
+    return const_cast<BH1750&>(meter).readLightLevel();
 }
