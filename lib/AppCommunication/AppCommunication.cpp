@@ -88,6 +88,9 @@ void AppCommunication::update() {
     if (doc.containsKey("apiKey")) {
         settings.setAPIKey(doc["apiKey"].as<String>());
     }
+    if (doc.containsKey("startHour")) {
+        settings.setStartHour(doc["startHour"].as<int>());
+    }
     if (doc.containsKey("lat") && doc.containsKey("lng")) {
         settings.setLocation(doc["lat"].as<double>(), doc["lng"].as<double>());
     }

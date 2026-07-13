@@ -26,6 +26,16 @@ void SettingsManager::setAPIKey(const String& newApiKey) {
     prefs.end();
 }
 
+void SettingsManager::setStartHour(int newStartHour){
+    if (startHour == newStartHour) return;
+
+    startHour = newStartHour;
+
+    prefs.begin("settings", false);
+    prefs.putUInt("startHour", startHour);
+    prefs.end();
+}
+
 void SettingsManager::setLocation(double newLat, double newLng) {
     if (latitude == newLat && longitude == newLng) return;
 
@@ -53,6 +63,7 @@ void SettingsManager::load() {
     ssid = prefs.getString("ssid", "");
     password = prefs.getString("password", "");
     apiKey = prefs.getString("apiKey", "");
+    startHour = prefs.getUInt("startHour", 0);
     latitude = prefs.getDouble("latitude", 0.0);
     longitude = prefs.getDouble("longitude", 0.0);
     timeZoneString = prefs.getString("timeZoneString", "");
@@ -71,20 +82,20 @@ const String& SettingsManager::getAPIKey() const {
     return apiKey;
 }
 
-double SettingsManager::getLatitude() const {
-    return latitude;
-}
-
-const String& SettingsManager::getTimeZoneString() const {
-    return timeZoneString;
-}
-
 int SettingsManager::getStartHour() const {
     return startHour;
 }
 
+double SettingsManager::getLatitude() const {
+    return latitude;
+}
+
 double SettingsManager::getLongitude() const {
     return longitude;
+}
+
+const String& SettingsManager::getTimeZoneString() const {
+    return timeZoneString;
 }
 
 bool SettingsManager::isFullConfigured() const {

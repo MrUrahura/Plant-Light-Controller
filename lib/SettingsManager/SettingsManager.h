@@ -6,9 +6,10 @@ class SettingsManager {
 public:
     SettingsManager();
     void load();
-    void setWiFi(const String& ssid, const String& password);
-    void setLocation(double latitude, double longitude);
+    void setWiFi(const String& newSsid, const String& newPassword);
     void setAPIKey(const String& apiKey);
+    void setStartHour(int startHour);
+    void setLocation(double newLat, double newLong);
     void setTimeZoneString(const String& tzString);
     const String& getSSID() const;
     const String& getPassword() const;
