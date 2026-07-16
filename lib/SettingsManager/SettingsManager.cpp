@@ -66,7 +66,7 @@ void SettingsManager::load() {
     startHour = prefs.getUInt("startHour", 0);
     latitude = prefs.getDouble("latitude", 0.0);
     longitude = prefs.getDouble("longitude", 0.0);
-    timeZoneString = prefs.getString("timeZoneString", "");
+    timeZoneString = prefs.getString("tzString", "");
     prefs.end();
 }
 
