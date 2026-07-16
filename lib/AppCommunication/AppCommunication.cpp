@@ -2,17 +2,6 @@
 #include <ArduinoJson.h>
 #include "AppCommunication.h"
 
-struct SetupData {
-    Plant plant;
-    String ssid;
-    String password;
-    String apiKey;
-    double latitude;
-    double longitude;
-    String timeZoneString;
-    int startHour;
-};
-
 #define SERVICE_UUID "3ffb09d6-6ba2-4d32-bc92-cbdaf9798ffa"
 #define CHARACTERISTIC_UUID "0dddf571-257c-4021-964b-a6fd9212384f"
 
@@ -31,7 +20,12 @@ void AppCommunication::begin() {
     
     // Create the custom communication channel
     BLEService* pService = pServer->createService(SERVICE_UUID);
-    pCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+    pCharacteristic = pService->createCharacteristic(
+        CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+        BLECharacteristic::PROPERTY_WRITE |
+        BLECharacteristic::PROPERTY_NOTIFY
+    );
 
     // CRUCIAL: Point Bluetooth events directly to this class instance
     pCharacteristic->setCallbacks(this);
@@ -44,15 +38,36 @@ void AppCommunication::begin() {
     pAdvertising->setMinPreferred(0x06);  
     BLEDevice::startAdvertising();
     
-    Serial.println("BLE: Server is broadcasting. Waiting for app pairing...");
+    Serial.println("BLE: Server is broadcasting. Waiting for site pairing...");
 }
 
 // Triggered automatically on a background thread when the phone sends data
 void AppCommunication::onWrite(BLECharacteristic* pCharacteristic) {
     std::string value = pCharacteristic->getValue();
+
     if (value.length() > 0) {
-        // Flag the main thread that data is ready
-        hasNewData = true;        
+        String chunk = String(value.c_str());
+
+        Serial.println("BLE chunk received:");
+        Serial.println(chunk);
+
+        bleBuffer += chunk;
+
+        if (bleBuffer.length() > 4096) {
+            bleBuffer = "";
+            Serial.println("BLE buffer overflow cleared");
+            return;
+        }
+
+        // Check if this looks like the end of the JSON message
+        if (chunk.endsWith("}")) {
+            hasNewData = true;
+            receivingData = false;
+            Serial.println("BLE message complete");
+        }
+        else {
+            receivingData = true;
+        }
     }
 }
 
@@ -62,8 +77,8 @@ void AppCommunication::update() {
     if (!hasNewData) return;
 
     hasNewData = false; // Reset flag
-    std::string rxValue = pCharacteristic->getValue();
-    String payload = String(rxValue.c_str());
+    String payload = bleBuffer;
+    bleBuffer = "";
 
     Serial.println("BLE Received raw text from phone: " + payload);
 

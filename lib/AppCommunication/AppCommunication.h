@@ -19,4 +19,6 @@ private:
     BLEServer* pServer = nullptr;
     BLECharacteristic* pCharacteristic = nullptr;
     bool hasNewData = false;
+    String bleBuffer;
+    bool receivingData = false;
 };
