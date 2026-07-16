@@ -48,8 +48,9 @@ void DLITracker::update() {
 }
 
 void DLITracker::saveDLI() {
+    Serial.println("Saving DLI info...");
     prefs.begin("DLITracker", false);
-    currentDLI = prefs.putDouble("currentDLI", currentDLI);
+    prefs.putDouble("currentDLI", currentDLI);
     prefs.putULong64("lastCheckpointTime", static_cast<uint64_t>(lastCheckpointTime));
     prefs.end();
 }
