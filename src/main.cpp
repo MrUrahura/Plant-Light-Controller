@@ -33,6 +33,9 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
+  // Test the hardware and its calibration
+  //testBlock();
+
   // Initialize components along with their "begin" or "load" method
   currentPlant.loadPlant();
   settings.load();
@@ -68,7 +71,7 @@ void loop() {
       // Periodically print a status message to the console every 3 seconds
       static unsigned long lastBluetoothLog = 0;
       if (millis() - lastBluetoothLog > 3000) {
-          Serial.println("System: Device unconfigured. Awaiting JSON payload from smartphone app...");
+          Serial.println("System: Device unconfigured. Awaiting JSON payload from website...");
           lastBluetoothLog = millis();
       }
 
@@ -118,4 +121,15 @@ void loop() {
       }
       break;
   }
+}
+
+void testBlock(){
+  // Run some tests to ensure the hardware works correctly
+  Serial.println("Running tests...");
+  Serial.println(sensor.readPPFDLevel());
+  Serial.println(shades.getCurrentState());
+  shades.setShades(ServoController::ShadeID::NONE);
+  Serial.println(shades.getCurrentState());
+  shades.setShades(ServoController::ShadeID::ALL);
+  delay(1000);
 }
