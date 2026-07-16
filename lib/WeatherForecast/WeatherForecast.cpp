@@ -54,7 +54,14 @@ void WeatherForecast::calculateRemainingDLI() {
         client.setInsecure();
         
         HTTPClient http;
-        http.begin(client, "http://weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&dt=" + timeManager.getCurrentDateString());
+
+        Serial.print("API Key: ");
+        Serial.println(settings.getAPIKey());
+        String url = "https://api.weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&dt=" + timeManager.getCurrentDateString();
+        Serial.print("Connecting to: ");
+        Serial.println(url);
+        
+        http.begin(client, url);
         int httpCode = http.GET();
         if (httpCode == HTTP_CODE_OK) {
             String payload = http.getString();
@@ -125,7 +132,9 @@ void WeatherForecast::calculateRemainingDLI() {
                 }
             }
         } else {
-            Serial.print("Error on HTTP request.");
+            Serial.print("Error on HTTP request: ");
+            Serial.println(httpCode);
+            Serial.println(http.errorToString(httpCode));
         }
         http.end();
     } else {
