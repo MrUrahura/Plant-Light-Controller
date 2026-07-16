@@ -19,7 +19,6 @@ public:
     bool areShadesClosed(ShadeID shades) const;
     void setShades(ShadeID shades);
     void setShades(uint8_t shades);
-    void saveState();
 
 private:
     Servo topServo;
@@ -53,6 +52,7 @@ private:
     void moveServo(Servo& servo, uint8_t speed, uint32_t timeMs);
     bool isMoving() const;
     void moveLoop();
+    void saveState();
 };
 
 // Enable bitwise operators for our enum class so the code looks clean
