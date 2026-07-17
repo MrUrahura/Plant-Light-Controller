@@ -11,6 +11,8 @@ public:
     void begin();
     void update();
     void onWrite(BLECharacteristic* pCharacteristic) override;
+    void onRead(BLECharacteristic* pCharacteristic);
+    void updateBLEStatus();
 
 private:
     Plant& plant;

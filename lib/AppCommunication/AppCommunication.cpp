@@ -5,6 +5,19 @@
 #define SERVICE_UUID "3ffb09d6-6ba2-4d32-bc92-cbdaf9798ffa"
 #define CHARACTERISTIC_UUID "0dddf571-257c-4021-964b-a6fd9212384f"
 
+class ServerCallbacks : public BLEServerCallbacks {
+public:
+    void onConnect(BLEServer* pServer) override {
+        Serial.println("BLE client connected");
+    }
+
+    void onDisconnect(BLEServer* pServer) override {
+        Serial.println("BLE client disconnected");
+        BLEDevice::startAdvertising();
+        Serial.println("BLE advertising restarted");
+    }
+};
+
 AppCommunication::AppCommunication(Plant& plant, SettingsManager& settings)
     : plant(plant), settings(settings)
 {
@@ -17,6 +30,7 @@ void AppCommunication::begin() {
     // Initialize the ESP32 Bluetooth Radio
     BLEDevice::init("Smart_Plant_Shade");
     pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new ServerCallbacks());
     
     // Create the custom communication channel
     BLEService* pService = pServer->createService(SERVICE_UUID);
@@ -32,6 +46,7 @@ void AppCommunication::begin() {
 
     // Start broadcasting so the smartphone app can see the device
     pService->start();
+    updateBLEStatus();
     BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(SERVICE_UUID);
     pAdvertising->setScanResponse(true);
@@ -69,6 +84,34 @@ void AppCommunication::onWrite(BLECharacteristic* pCharacteristic) {
             receivingData = true;
         }
     }
+}
+
+void AppCommunication::onRead(BLECharacteristic* pCharacteristic) {
+
+    JsonDocument doc;
+
+    doc["ssid"] = settings.getSSID();
+    doc["pass"] = settings.getPassword();
+    doc["apiKey"] = settings.getAPIKey();
+    doc["startHour"] = settings.getStartHour();
+    doc["lat"] = settings.getLatitude();
+    doc["lng"] = settings.getLongitude();
+    doc["tz"] = settings.getTimeZoneString();
+
+    doc["pName"] = plant.getName();
+    doc["pType"] = plant.getType();
+    doc["minDLI"] = plant.getMinDLI();
+    doc["maxDLI"] = plant.getMaxDLI();
+    doc["photo"] = plant.getPhotoperiod();
+
+    String output;
+    serializeJson(doc, output);
+
+    pCharacteristic->setValue(output.c_str());
+    pCharacteristic->notify();
+
+    Serial.println("BLE read request:");
+    Serial.println(output);
 }
 
 void AppCommunication::update() {
@@ -128,4 +171,30 @@ void AppCommunication::update() {
     }
 
     Serial.println("BLE Sync Complete: Settings and Plant definitions updated successfully!");
+}
+
+void AppCommunication::updateBLEStatus() {
+    JsonDocument doc;
+
+    doc["ssid"] = settings.getSSID();
+    doc["pass"] = settings.getPassword();
+    doc["apiKey"] = settings.getAPIKey();
+    doc["startHour"] = settings.getStartHour();
+    doc["lat"] = settings.getLatitude();
+    doc["lng"] = settings.getLongitude();
+    doc["tz"] = settings.getTimeZoneString();
+
+    doc["pName"] = plant.getName();
+    doc["pType"] = plant.getType();
+    doc["minDLI"] = plant.getMinDLI();
+    doc["maxDLI"] = plant.getMaxDLI();
+    doc["photo"] = plant.getPhotoperiod();
+
+    String output;
+    serializeJson(doc, output);
+
+    pCharacteristic->setValue(output.c_str());
+
+    Serial.println("BLE status updated:");
+    Serial.println(output);
 }
