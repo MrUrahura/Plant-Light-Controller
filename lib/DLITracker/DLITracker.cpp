@@ -10,7 +10,7 @@ DLITracker::DLITracker(const LightSensor& sensor, const TimeManager& timeManager
 void DLITracker::loadDLI() {
     prefs.begin("DLITracker", true);
     currentDLI = prefs.getDouble("currentDLI", 0.0);
-    lastCheckpointTime = static_cast<time_t>(prefs.getULong64("lastCheckpointTime", 0));
+    lastCheckpointTime = static_cast<time_t>(prefs.getULong64("lastChkTime", 0));
     prefs.end();
 
     lastUpdateTime = timeManager.getUnixTime();
@@ -56,7 +56,7 @@ void DLITracker::saveDLI() {
     Serial.println("Saving DLI info...");
     prefs.begin("DLITracker", false);
     prefs.putDouble("currentDLI", currentDLI);
-    prefs.putULong64("lastCheckpointTime", static_cast<uint64_t>(lastCheckpointTime));
+    prefs.putULong64("lastChkTime", static_cast<uint64_t>(lastCheckpointTime));
     prefs.end();
 }
 
