@@ -28,6 +28,13 @@ void DLITracker::reset() {
 }
 
 void DLITracker::update() {
+    if(!timeManager.withinPhotoperiod()){
+        if(currentDLI > 0.0) {
+            reset();
+        }
+        return;
+    }
+    
     time_t now = timeManager.getUnixTime();
 
     double elapsedSeconds = difftime(now, lastUpdateTime);
