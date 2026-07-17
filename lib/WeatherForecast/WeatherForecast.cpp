@@ -57,28 +57,44 @@ void WeatherForecast::calculateRemainingDLI() {
 
         Serial.print("API Key: ");
         Serial.println(settings.getAPIKey());
-        String url = "https://api.weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&dt=" + timeManager.getCurrentDateString();
+        String url = "https://api.weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&days=1&aqi=no&alerts=no";
         Serial.print("Connecting to: ");
         Serial.println(url);
         
+        Serial.print("Unix time: ");
+        Serial.println(timeManager.getUnixTime());
         http.begin(client, url);
+        http.useHTTP10(true);
+        // http.setReuse(false);
+        // http.addHeader("Accept-Encoding", "identity");
         int httpCode = http.GET();
-        if (httpCode == HTTP_CODE_OK) {
-            String payload = http.getString();
-        
-            // DynamicJsonDocument sizing: WeatherAPI history responses are quite large, so we have to allocate enough space.
-            DynamicJsonDocument filter(4096);
-            // We filter the JSON input to ONLY read the hourly CLOUD COVER data to save ESP32 memory.
-            filter["forecast"]["forecastday"][0]["hour"][0]["cloud"] = true;
-            // We filter the JSON input to ONLY read the hourly CONDITION data to save ESP32 memory.
-            filter["forecast"]["forecastday"][0]["hour"][0]["condition"]["text"] = true;
+        Serial.print("HTTP Response Code: ");
+        Serial.println(httpCode);
 
-            DynamicJsonDocument doc(16384); // Allocate enough heap space for the filtered layout
-            DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+        if (httpCode > 0) {
+            Serial.print("Content-Length reported: ");
+            Serial.println(http.getSize());
+            
+            StaticJsonDocument<512> filter; // Keep it small and on the stack
 
-            if (error) {
+            // Explicitly drill down or step-assign the nested structure
+            JsonObject forecastObj = filter["forecast"].to<JsonObject>();
+            JsonArray forecastdayArr = forecastObj["forecastday"].to<JsonArray>();
+            JsonObject dayZeroObj = forecastdayArr.add<JsonObject>();
+            JsonArray hourArr = dayZeroObj["hour"].to<JsonArray>();
+            JsonObject hourFields = hourArr.add<JsonObject>();
+
+            // Set the specific data keys you want to keep
+            hourFields["cloud"] = true;
+            hourFields["condition"]["text"] = true;
+            
+            DynamicJsonDocument doc(24576); // 24KB buffer for the filtered elements
+            DeserializationError jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+
+            if (jsonError) {
                 Serial.print("JSON Parsing failed: ");
-                Serial.println(error.c_str());
+                Serial.println(jsonError.c_str());
+                http.end();
                 return;
             }
 
@@ -86,10 +102,17 @@ void WeatherForecast::calculateRemainingDLI() {
             // Reset DLI values before processing new data
             completeDayDLI = 0.0;
             remainingDLI = 0.0;
-            for (int h = 0; h <= 23; h++) {
+            for (int h = 0; h < 24; h++) {
                 // Get the weather data for the hour
-                int cloudCover = hourlyArray[h]["cloud"].as<int>();
-                String conditionText = hourlyArray[h]["condition"].as<String>();
+                int cloudCover = hourlyArray[h]["cloud"] | 0;
+                String conditionText = hourlyArray[h]["condition"]["text"] | "";
+
+                Serial.print("Hour ");
+                Serial.print(h);
+                Serial.print(": Cloud ");
+                Serial.print(cloudCover);
+                Serial.print("% Condition ");
+                Serial.println(conditionText);
 
                 // Calculate Solar Geometry
                 double clearSkyGHI = calculateClearSkyGHI(h);
@@ -132,9 +155,16 @@ void WeatherForecast::calculateRemainingDLI() {
                 }
             }
         } else {
-            Serial.print("Error on HTTP request: ");
+            Serial.print("HTTP request failed. Code: ");
             Serial.println(httpCode);
-            Serial.println(http.errorToString(httpCode));
+
+            String response = http.getString();
+
+            Serial.print("Response length: ");
+            Serial.println(response.length());
+
+            Serial.println("Response body:");
+            Serial.println(response);
         }
         http.end();
     } else {
