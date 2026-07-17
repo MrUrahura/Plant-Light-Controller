@@ -1,8 +1,8 @@
 #include <time.h>
 #include "TimeManager.h"
 
-TimeManager::TimeManager(const SettingsManager& settings, const NetworkManager& network, const int& photoperiod)
-    : settings(settings), network(network), photoperiod(photoperiod) { }
+TimeManager::TimeManager(const SettingsManager& settings, const NetworkManager& network, const Plant& plant)
+    : settings(settings), network(network), plant(plant) { }
 
 void TimeManager::begin() {
     if(network.isConnected()) {
@@ -18,6 +18,7 @@ void TimeManager::begin() {
         if(isTimeSynced()){
             // Pull the raw POSIX string out of your settings manager pointer (e.g., "PST8PDT,M3.2.0,M11.1.0")
             String tzRule = settings.getTimeZoneString();
+            Serial.println(settings.getTimeZoneString());
             
             // Inject the rule directly into the ESP32 system environment variables
             setenv("TZ", tzRule.c_str(), 1); 
@@ -25,6 +26,8 @@ void TimeManager::begin() {
             tzset();
 
             Serial.println("TimeManager: Time synchronized.");
+            Serial.print("Current hour: ");
+            Serial.println(getHour());
         } else {
             Serial.println("TimeManager: Warning: NTP response timed out. Will retry in background loop.");
         }
@@ -79,13 +82,13 @@ int TimeManager::getPhotoperiodStartTime() const {
 }
 
 int TimeManager::getPhotoperiodEndTime() const {
-    return settings.getStartHour() + photoperiod;
+    return settings.getStartHour() + plant.getPhotoperiod();
 }
 
 bool TimeManager::withinPhotoperiod() const {
     int currentHour = getHour();
     int startHour = settings.getStartHour();
-    return (currentHour >= startHour && currentHour < startHour + photoperiod);
+    return (currentHour >= startHour && currentHour < startHour + plant.getPhotoperiod());
 }
 
 time_t TimeManager::getUnixTime() const {

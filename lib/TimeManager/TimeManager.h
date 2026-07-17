@@ -2,10 +2,11 @@
 #include <Arduino.h>
 #include "SettingsManager.h"
 #include "NetworkManager.h"
+#include "Plant.h"
 
 class TimeManager {
 public:
-    TimeManager(const SettingsManager& settings, const NetworkManager& network, const int& photoperiod);
+    TimeManager(const SettingsManager& settings, const NetworkManager& network, const Plant& plant);
     void begin();
     bool isTimeSynced() const;
     void getCurrentTime(int &hour, int &minute, int &second) const;
@@ -21,5 +22,5 @@ public:
 private:
     const SettingsManager& settings;
     const NetworkManager& network;
-    const int& photoperiod;
+    const Plant& plant;
 };
