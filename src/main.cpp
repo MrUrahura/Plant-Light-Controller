@@ -17,10 +17,15 @@ ServoController shades;
 SettingsManager settings;
 NetworkManager network(settings);
 AppCommunication appComm(currentPlant, settings);
-TimeManager timeManager(settings, network, currentPlant.getPhotoperiod());
+TimeManager timeManager(settings, network, currentPlant);
 DLITracker dliTracker(sensor, timeManager);
 WeatherForecast weather(settings, network, timeManager);
 LightController lightControl(currentPlant, sensor, shades, dliTracker, weather, timeManager);
+
+// First run flags
+bool firstWeatherUpdate = true;
+bool firstOptimization = true;
+bool wasInPhotoperiod = false;
 
 // Enum to represent the state of the system
 enum class SystemState {
@@ -47,6 +52,8 @@ void setup() {
   if (currentPlant.isConfigured() && settings.isFullConfigured())
   {
     network.begin();
+    timeManager.begin();
+
     currentState = SystemState::READY;
   }
   else
@@ -63,6 +70,8 @@ void loop() {
   network.handle();
   // Keep the Bluetooth interface with the app up to listen for changes from the app
   appComm.update();
+  // Keep updating our currentDLI
+  dliTracker.update();
 
   // --- STATE MACHINE ---
   // Check the system state and perform actions accordingly
@@ -82,7 +91,8 @@ void loop() {
           
           // Start the background WiFi engine now that credentials exist
           network.begin(); 
-          
+          timeManager.begin();
+
           // Push the state machine forward!
           currentState = SystemState::READY; 
       }
@@ -92,7 +102,7 @@ void loop() {
       // --- TIME SYNC MANAGER ---
       // Periodically attempts an NTP sync if the internal clock is uninitialized
       static unsigned long lastTimeSync = 0;
-      if (!timeManager.isTimeSynced() && millis() - lastTimeSync > 10000) {
+      if (!timeManager.isTimeSynced() && millis() - lastTimeSync > 1000) {
           if (network.isConnected()) {
               Serial.println("System: Internal clock invalid. Re-attempting NTP Time Sync...");
               timeManager.begin();
@@ -102,21 +112,46 @@ void loop() {
 
       // --- CLOUD WEATHER ENGINE (Every 15 minutes) ---
       static unsigned long lastWeatherUpdate = 0;
-      if (millis() - lastWeatherUpdate > 900000) { // 15 mins
+      if (millis() - lastWeatherUpdate > 300000 || firstWeatherUpdate) { // 5 mins
           if (network.isConnected() && timeManager.isTimeSynced()) {
               Serial.println("System: Updating weather forecast curves...");
               weather.update();
               lastWeatherUpdate = millis();
+              firstWeatherUpdate = false;
           }
       } 
 
       // --- HARDWARE OPTIMIZATION CALCULATOR (Every 5 minutes) ---
       static unsigned long lastStateOptimize = 0;
-      if (millis() - lastStateOptimize > 300000) { // 5 mins
-          if (timeManager.isTimeSynced()) {
-            Serial.println("System: Recalculating optimum window blind positioning...");
-            lightControl.optimizeState();
+      bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
+      if (millis() - lastStateOptimize > 300000 || firstOptimization) { // 5 mins
+          // Transition: inside -> outside
+          if (wasInPhotoperiod && !currentlyInPhotoperiod) {
+              Serial.println("System Alert: Photoperiod ended. Closing shades until morning.");
+
+              Serial.print(timeManager.getHour());
+              Serial.print(" is not within ");
+              Serial.print(timeManager.getPhotoperiodStartTime());
+              Serial.print(" and ");
+              Serial.print(timeManager.getPhotoperiodEndTime());
+
+              shades.setShades(ServoController::ShadeID::ALL);
+              dliTracker.reset();
           }
+
+          // Transition: outside -> inside
+          if (!wasInPhotoperiod && currentlyInPhotoperiod) {
+              Serial.println("System: Photoperiod started. Beginning light optimization.");
+          }
+
+          if (currentlyInPhotoperiod && timeManager.isTimeSynced()) {
+              Serial.println("System: Recalculating optimum window blind positioning...");
+              lightControl.optimizeState();
+
+              firstOptimization = false;
+          }
+
+          wasInPhotoperiod = currentlyInPhotoperiod;
           lastStateOptimize = millis();
       }
       break;
