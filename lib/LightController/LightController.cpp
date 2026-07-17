@@ -32,18 +32,15 @@ void LightController::updatePlannedHourlyDLI() {
 
 uint8_t LightController::findOptimumState() {
     uint8_t numStates = static_cast<uint8_t>(ServoController::ShadeID::ALL);
-    if(!timeManager.withinPhotoperiod()) {
-        Serial.println("System Alert: Outside active photoperiod. Holding blinds in dark mode until morning.");
-        return numStates;
-        // After this, stop running the algorithm and send a message to the user to put their plants in darkness.
-        // Then, wait until the next time we hit timeManager.startHour.
-    }
 
     updatePlannedHourlyDLI();
 
     double minCost = 0.0;
     uint8_t minState = 0;
-    for(uint8_t i{0}; i < numStates; ++i){
+    for(uint8_t i{0}; i <= numStates; ++i){
+        Serial.print("Checking state ");
+        Serial.println(i);
+        
         shades.setShades(i);
         delay(50);
 
@@ -85,5 +82,7 @@ uint8_t LightController::findOptimumState() {
         }
     }
 
+    Serial.print("The optimal state is state ");
+    Serial.println(minState);
     return minState;
 }
