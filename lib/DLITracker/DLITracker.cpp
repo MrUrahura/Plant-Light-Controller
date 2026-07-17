@@ -29,9 +29,7 @@ void DLITracker::reset() {
 
 void DLITracker::update() {
     if(!timeManager.withinPhotoperiod()){
-        if(currentDLI > 0.0) {
-            reset();
-        }
+        if(currentDLI > 0.0) reset();
         return;
     }
     
