@@ -7,7 +7,7 @@ NetworkManager::NetworkManager(const SettingsManager& settings)
     : settings(settings) {  }
 
 void NetworkManager::begin(){
-    WiFi.mode(WIFI_STA); 
+    WiFi.mode(WIFI_STA);
     connectWiFi();
 }
 
@@ -27,8 +27,28 @@ void NetworkManager::connectWiFi() {
 
     Serial.printf("NetworkManager: Initiating connection to %s...\n", settings.getSSID().c_str());
 
-    WiFi.disconnect(false, true); 
+    WiFi.disconnect();
     WiFi.begin(settings.getSSID().c_str(), settings.getPassword().c_str());
+
+    unsigned long start = millis();
+
+    while(WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+        delay(250);
+        Serial.print(".");
+    }
+
+    Serial.println();
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("WiFi connected!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        Serial.print("RSSI: ");
+        Serial.println(WiFi.RSSI());
+    } else {
+        Serial.print("WiFi failed. Status: ");
+        Serial.println(WiFi.status());
+    }
 
     lastReconnectAttempt = millis();
 }
