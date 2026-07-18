@@ -5,7 +5,13 @@
 
 bool LightSensor::begin() {
     Wire.begin(LIGHT_SDA_PIN, LIGHT_SCL_PIN);
-    return meter.begin();
+    Serial.println("Initializing BH1750...");
+
+    bool success = meter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
+
+    Serial.println(success ? "BH1750 OK" : "BH1750 FAILED");
+
+    return success;
 }
 
 double LightSensor::readPPFDLevel() const {

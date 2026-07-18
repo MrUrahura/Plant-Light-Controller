@@ -38,9 +38,6 @@ void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
-  // Test the hardware and its calibration
-  //testBlock();
-
   // Initialize components along with their "begin" or "load" method
   currentPlant.loadPlant();
   settings.load();
@@ -156,15 +153,4 @@ void loop() {
       }
       break;
   }
-}
-
-void testBlock(){
-  // Run some tests to ensure the hardware works correctly
-  Serial.println("Running tests...");
-  Serial.println(sensor.readPPFDLevel());
-  Serial.println(shades.getCurrentState());
-  shades.setShades(ServoController::ShadeID::NONE);
-  Serial.println(shades.getCurrentState());
-  shades.setShades(ServoController::ShadeID::ALL);
-  delay(1000);
 }

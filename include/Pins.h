@@ -2,7 +2,7 @@
 
 // I2C
 constexpr int LIGHT_SDA_PIN = 21;
-constexpr int LIGHT_SCL_PIN = 22;
+constexpr int LIGHT_SCL_PIN = 18;
 
 // Outputs
 constexpr int TOP_SERVO_PIN = 25;
