@@ -65,8 +65,7 @@ void WeatherForecast::calculateRemainingDLI() {
         Serial.println(timeManager.getUnixTime());
         http.begin(client, url);
         http.useHTTP10(true);
-        // http.setReuse(false);
-        // http.addHeader("Accept-Encoding", "identity");
+        http.setTimeout(10000);
         int httpCode = http.GET();
         Serial.print("HTTP Response Code: ");
         Serial.println(httpCode);
@@ -75,7 +74,7 @@ void WeatherForecast::calculateRemainingDLI() {
             Serial.print("Content-Length reported: ");
             Serial.println(http.getSize());
             
-            StaticJsonDocument<512> filter; // Keep it small and on the stack
+            StaticJsonDocument<1024> filter; // Keep it small and on the stack
 
             // Explicitly drill down or step-assign the nested structure
             JsonObject forecastObj = filter["forecast"].to<JsonObject>();
@@ -88,12 +87,23 @@ void WeatherForecast::calculateRemainingDLI() {
             hourFields["cloud"] = true;
             hourFields["condition"]["text"] = true;
             
-            DynamicJsonDocument doc(24576); // 24KB buffer for the filtered elements
+            DynamicJsonDocument doc(4096); // 24KB buffer for the filtered elements
+            
             DeserializationError jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+            for(uint8_t attempt{0}; attempt < 3; ++attempt){
+                if(!jsonError){
+                    break;
+                }
 
-            if (jsonError) {
                 Serial.print("JSON Parsing failed: ");
                 Serial.println(jsonError.c_str());
+                if(attempt + 1 < 3){
+                    Serial.println("Retrying weather request...");
+                    jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
+                }
+            }
+
+            if (jsonError) {
                 http.end();
                 return;
             }
@@ -102,6 +112,7 @@ void WeatherForecast::calculateRemainingDLI() {
             // Reset DLI values before processing new data
             completeDayDLI = 0.0;
             remainingDLI = 0.0;
+            photoperiodDLI = 0.0;
             for (int h = 0; h < 24; h++) {
                 // Get the weather data for the hour
                 int cloudCover = hourlyArray[h]["cloud"] | 0;
