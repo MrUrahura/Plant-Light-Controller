@@ -67,8 +67,6 @@ void loop() {
   network.handle();
   // Keep the Bluetooth interface with the app up to listen for changes from the app
   appComm.update();
-  // Keep updating our currentDLI
-  dliTracker.update();
 
   // --- STATE MACHINE ---
   // Check the system state and perform actions accordingly
@@ -96,6 +94,10 @@ void loop() {
       break;
 
     case SystemState::READY:
+      // --- SYSTEM-READY UPDATES ---
+      // Keep updating our currentDLI
+      dliTracker.update();  
+    
       // --- TIME SYNC MANAGER ---
       // Periodically attempts an NTP sync if the internal clock is uninitialized
       static unsigned long lastTimeSync = 0;
@@ -110,7 +112,7 @@ void loop() {
       // --- CLOUD WEATHER ENGINE (Every 15 minutes) ---
       static unsigned long lastWeatherUpdate = 0;
       if (millis() - lastWeatherUpdate > 300000 || firstWeatherUpdate) { // 5 mins
-          if (network.isConnected() && timeManager.isTimeSynced()) {
+          if (network.isConnected() && timeManager.isTimeSynced() && timeManager.withinPhotoperiod()) {
               Serial.println("System: Updating weather forecast curves...");
               weather.update();
               lastWeatherUpdate = millis();
