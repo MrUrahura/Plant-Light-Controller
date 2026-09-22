@@ -11,10 +11,22 @@ void ServoController::begin() {
     topServo.attach(TOP_SERVO_PIN);
     leftServo.attach(LEFT_SERVO_PIN);
     rightServo.attach(RIGHT_SERVO_PIN);
+
+    topServo.write(SERVO_STOP);
+    leftServo.write(SERVO_STOP);
+    rightServo.write(SERVO_STOP);
+    topMoving = false;
+    leftMoving = false;
+    rightMoving = false;
     
-    prefs.begin("servos", true);
-    shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
-    prefs.end();
+    /* Regular Operation Code
+        prefs.begin("servos", true);
+        shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
+        prefs.end();
+    */
+    // Calibration Code
+    shadeState = static_cast<uint8_t>(ShadeID::ALL);
+    saveState();
 }
 
 uint8_t ServoController::getCurrentState() {
@@ -54,12 +66,10 @@ void ServoController::setShades(uint8_t shades) {
     if ((shadeState & ShadeID::RIGHT_SHADE) != (shades & ShadeID::RIGHT_SHADE))
     {
         if (shades & ShadeID::RIGHT_SHADE)
-            moveServo(rightServo, FORWARD_SPEED, RIGHT_CLOSE_TIME_MS);
+            moveServo(rightServo, REVERSE_SPEED, RIGHT_CLOSE_TIME_MS);
         else
-            moveServo(rightServo, REVERSE_SPEED, RIGHT_OPEN_TIME_MS);
+            moveServo(rightServo, FORWARD_SPEED, RIGHT_OPEN_TIME_MS);
     }
-
-    moveLoop();
 
     shadeState = shades;
     saveState();
@@ -71,15 +81,18 @@ void ServoController::moveServo(Servo& servo, uint8_t speed, uint32_t timeMs)
     servo.write(speed);
     if (&servo == &topServo) {
         topMoving = true;
-        topStopTime = millis() + timeMs;
+        topStartTime = millis();
+        topDuration = timeMs;
     }
     else if (&servo == &leftServo) {
         leftMoving = true;
-        leftStopTime = millis() + timeMs;
+        leftStartTime = millis();
+        leftDuration = timeMs;
     }
     else if (&servo == &rightServo) {
         rightMoving = true;
-        rightStopTime = millis() + timeMs;
+        rightStartTime = millis();
+        rightDuration = timeMs;
     }
 }
 
@@ -87,30 +100,28 @@ bool ServoController::isMoving() const {
     return topMoving || leftMoving || rightMoving;
 }
 
-void ServoController::moveLoop() {
-    while(isMoving()){
-        uint32_t now = millis();
+void ServoController::update() {
+    uint32_t now = millis();
 
-        if (topMoving && now >= topStopTime)
-        {
-            topServo.write(SERVO_STOP);
-            topMoving = false;
-            Serial.println("Stopping top servo...");
-        }
+    if (topMoving && (now - topStartTime >= topDuration))
+    {
+        topServo.write(SERVO_STOP);
+        topMoving = false;
+        Serial.println("Stopping top servo...");
+    }
 
-        if (leftMoving && now >= leftStopTime)
-        {
-            leftServo.write(SERVO_STOP);
-            leftMoving = false;
-            Serial.println("Stopping left servo...");
-        }
+    if (leftMoving && (now - leftStartTime >= leftDuration))
+    {
+        leftServo.write(SERVO_STOP);
+        leftMoving = false;
+        Serial.println("Stopping left servo...");
+    }
 
-        if (rightMoving && now >= rightStopTime)
-        {
-            rightServo.write(SERVO_STOP);
-            rightMoving = false;
-            Serial.println("Stopping right servo...");
-        }
+    if (rightMoving && (now - rightStartTime >= rightDuration))
+    {
+        rightServo.write(SERVO_STOP);
+        rightMoving = false;
+        Serial.println("Stopping right servo...");
     }
 }
 

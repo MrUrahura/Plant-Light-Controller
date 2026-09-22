@@ -67,6 +67,10 @@ void loop() {
   network.handle();
   // Keep the Bluetooth interface with the app up to listen for changes from the app
   appComm.update();
+  // Non-blocking shades operation so the shades can be checked each time in case they're moving
+  shades.update();
+  // Non-blocking light controlling operation to keep the checking also non-blocking along with the shades
+  lightControl.update();
 
   // --- STATE MACHINE ---
   // Check the system state and perform actions accordingly
@@ -109,7 +113,7 @@ void loop() {
           }
       }
 
-      // --- CLOUD WEATHER ENGINE (Every 15 minutes) ---
+      // --- CLOUD WEATHER ENGINE (Every 5 minutes) ---
       static unsigned long lastWeatherUpdate = 0;
       if (millis() - lastWeatherUpdate > 300000 || firstWeatherUpdate) { // 5 mins
           if (network.isConnected() && timeManager.isTimeSynced() && timeManager.withinPhotoperiod()) {
@@ -122,10 +126,13 @@ void loop() {
 
       // --- HARDWARE OPTIMIZATION CALCULATOR (Every 5 minutes) ---
       static unsigned long lastStateOptimize = 0;
+      static bool scanInProgress = false;
       bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
-      if (millis() - lastStateOptimize > 300000 || firstOptimization) { // 5 mins
-          // Transition: inside -> outside
-          if (wasInPhotoperiod && !currentlyInPhotoperiod) {
+
+      if (millis() - lastStateOptimize > 300000 || firstOptimization || scanInProgress) { // 5 mins
+
+          // Transition: inside -> outside (leaving photoperiod)
+          if (wasInPhotoperiod && !currentlyInPhotoperiod && !scanInProgress) {
               Serial.println("System Alert: Photoperiod ended. Closing shades until morning.");
 
               Serial.print(timeManager.getHour());
@@ -138,20 +145,35 @@ void loop() {
               dliTracker.reset();
           }
 
-          // Transition: outside -> inside
-          if (!wasInPhotoperiod && currentlyInPhotoperiod) {
+          // Transition: outside -> inside (entering photoperiod)
+          if (!wasInPhotoperiod && currentlyInPhotoperiod && !scanInProgress) {
               Serial.println("System: Photoperiod started. Beginning light optimization.");
           }
 
-          if (currentlyInPhotoperiod && timeManager.isTimeSynced()) {
+          // Handle Active Scanning Step Matrix Execution
+          if (currentlyInPhotoperiod) {
+            if (!scanInProgress) {
               Serial.println("System: Recalculating optimum window blind positioning...");
               lightControl.optimizeState();
-
-              firstOptimization = false;
+              scanInProgress = true;
+            }
+            else if (!lightControl.isCurrentlyOptimizing()){
+                Serial.println("System: Physical shade scan complete. Beginning 5-minute rest cycle.");
+                scanInProgress = false;
+                firstOptimization = false;
+                wasInPhotoperiod = currentlyInPhotoperiod;
+                lastStateOptimize = millis(); // Countdown officially starts NOW, since the scan is complete and we are now in a 5-minute rest cycle
+            }
           }
 
-          wasInPhotoperiod = currentlyInPhotoperiod;
-          lastStateOptimize = millis();
+          // Only track edge history variables if an active scan sequence isn't overriding configurations
+          if(!scanInProgress) {
+            firstOptimization = false;
+            wasInPhotoperiod = currentlyInPhotoperiod;
+            if (millis() - lastStateOptimize > 300000) {
+                lastStateOptimize = millis();
+            }
+          }
       }
       break;
   }
