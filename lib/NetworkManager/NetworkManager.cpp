@@ -30,21 +30,12 @@ void NetworkManager::connectWiFi() {
     WiFi.disconnect();
     WiFi.begin(settings.getSSID().c_str(), settings.getPassword().c_str());
 
-    unsigned long start = millis();
-
-    while(WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-        delay(250);
-        Serial.print(".");
-    }
-
-    Serial.println();
-
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println("WiFi connected!");
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
-        Serial.print("RSSI: ");
-        Serial.println(WiFi.RSSI());
+        // Serial.print("IP address: ");
+        // Serial.println(WiFi.localIP());
+        // Serial.print("RSSI: ");
+        // Serial.println(WiFi.RSSI());
     } else {
         Serial.print("WiFi failed. Status: ");
         Serial.println(WiFi.status());
@@ -62,10 +53,8 @@ void NetworkManager::handle() {
     if (!isConnected() && isConfigured()) {
         unsigned long currentMillis = millis();
         if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
-            lastReconnectAttempt = currentMillis; 
-
             Serial.println("NetworkManager: Connection lost. Retrying...");
-            connectWiFi(); 
+            connectWiFi();
         }
     }
 }
