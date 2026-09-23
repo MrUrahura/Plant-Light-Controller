@@ -17,8 +17,8 @@ public:
 
     uint8_t getCurrentState();
     bool areShadesClosed(ShadeID shades) const;
-    void setShades(ShadeID shades);
-    void setShades(uint8_t shades);
+    bool setShades(ShadeID shades, bool saveToPrefs);
+    bool setShades(uint8_t shades, bool saveToPrefs);
     void update();
     bool isMoving() const;
 
@@ -39,13 +39,13 @@ private:
     static constexpr uint8_t FORWARD_SPEED = 0;
     static constexpr uint8_t REVERSE_SPEED = 180;
 
-    static constexpr uint32_t TOP_OPEN_TIME_MS = 2000;
-    static constexpr uint32_t TOP_CLOSE_TIME_MS = 2000;
+    static constexpr uint32_t TOP_OPEN_TIME_MS = 4500;
+    static constexpr uint32_t TOP_CLOSE_TIME_MS = 4200;
 
-    static constexpr uint32_t LEFT_OPEN_TIME_MS = 5000;
+    static constexpr uint32_t LEFT_OPEN_TIME_MS = 5300;
     static constexpr uint32_t LEFT_CLOSE_TIME_MS = 5000;
 
-    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 5000;
+    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 5300;
     static constexpr uint32_t RIGHT_CLOSE_TIME_MS = 5000;
 
     bool topMoving;
@@ -61,7 +61,10 @@ private:
     uint32_t rightStartTime = 0;
 
     void moveServo(Servo& servo, uint8_t speed, uint32_t timeMs);
+    bool saveOnComplete = false;
     void saveState();
+    void attachServos();
+    void detachServos();
 };
 
 inline ServoController::ShadeID operator|(

@@ -29,95 +29,139 @@ void LightController::optimizeState() {
     updatePlannedHourlyDLI();
 
     isOptimizing = true;
-    currentTestingState = 0;
-    waitingForMovement = false;
-    applyingFinalState = false;
+    currentIndex = 0;
+    scanPhase = ScanPhase::COMMAND;
 }
 
 void LightController::update() {
+
     if (!isOptimizing) {
         return;
     }
 
-    // Final state has already been selected. Wait until the physical movement is actually complete before releasing the optimization lock.
-    if (applyingFinalState) {
+    switch (scanPhase) {
+        case ScanPhase::COMMAND:
+        {
+            uint8_t targetState = SCAN_ORDER[currentIndex];
+            Serial.print("LightController: Initiating movement to test state [");
+            Serial.print(targetState);
+            Serial.println("]");
 
-        if (shades.isMoving()) {
-            return;
-        }
-
-        if (millis() - movementStartTime < SETTLE_DELAY_MS) {
-            return;
-        }
-
-        applyingFinalState = false;
-        waitingForMovement = false;
-        isOptimizing = false;
-
-        Serial.println("LightController: Final shade position stabilized.");
-        return;
-    }
-
-    // Phase 1: command the next test state.
-    if (!waitingForMovement) {
-        Serial.print("LightController: Initiating movement to test state [");
-        Serial.print(currentTestingState);
-        Serial.println("]");
-
-        shades.setShades(currentTestingState);
-
-        waitingForMovement = true;
-        movementStartTime = millis();
-        return;
-    }
-
-    // Phase 2: wait for all commanded servos to physically stop.
-    if (shades.isMoving()) {
-        return;
-    }
-
-    // Phase 3: stabilization delay after movement.
-    if (millis() - movementStartTime < SETTLE_DELAY_MS) {
-        return;
-    }
-
-    // Phase 4: measure the current physical configuration.
-    double physicalReading = sensor.readPPFDLevel();
-    measuredPPFDs[currentTestingState] = physicalReading;
-
-    Serial.print("LightController: Captured Real PPFD for State ");
-    Serial.print(currentTestingState);
-    Serial.print(" -> ");
-    Serial.println(physicalReading);
-
-    currentTestingState++;
-    waitingForMovement = false;
-
-    // All eight states have been measured.
-    if (currentTestingState > 7) {
-
-        double minCost = 9999999.0;
-        uint8_t minState = 0;
-
-        for (uint8_t i = 0; i <= 7; ++i) {
-            double cost = calculateCostForState(i, measuredPPFDs[i]);
-
-            if (i == 0 || cost < minCost) {
-                minCost = cost;
-                minState = i;
+            // Only advance if ServoController actually accepted it.
+            if (shades.setShades(targetState, false)) {
+                scanPhase = ScanPhase::WAIT_FOR_MOVEMENT;
             }
+
+            return;
         }
 
-        Serial.print("\n>>> Optimization Complete! Optimal Configuration State Applied: ");
-        Serial.println(minState);
+        case ScanPhase::WAIT_FOR_MOVEMENT:
+        {
+            // ServoController is the authority on physical movement.
+            if (shades.isMoving()) {
+                return;
+            }
 
-        // Command the final physical position.
-        shades.setShades(minState);
+            // Movement finished. Begin stabilization NOW.
+            settleStartTime = millis();
+            scanPhase = ScanPhase::SETTLE;
 
-        // Do NOT mark optimization finished yet.
-        // The main loop must wait for the final movement to finish.
-        applyingFinalState = true;
-        movementStartTime = millis();
+            return;
+        }
+
+        case ScanPhase::SETTLE:
+        {
+            if (millis() - settleStartTime < SETTLE_DELAY_MS) {
+                return;
+            }
+
+            scanPhase = ScanPhase::MEASURE;
+
+            return;
+        }
+
+        case ScanPhase::MEASURE:
+        {
+            uint8_t measuredState = SCAN_ORDER[currentIndex];
+            double physicalReading = sensor.readPPFDLevel();
+            measuredPPFDs[measuredState] = physicalReading;
+
+            Serial.print("LightController: Captured Real PPFD for State ");
+            Serial.print(currentIndex);
+            Serial.print(" -> ");
+            Serial.println(physicalReading);
+
+            currentIndex++;
+
+            if (currentIndex <= 7) {
+                scanPhase = ScanPhase::COMMAND;
+                return;
+            }
+
+            // All eight states measured.
+            double minCost = 9999999.0;
+            finalState = 0;
+
+            for (uint8_t i = 0; i <= 7; ++i) {
+
+                double cost =
+                    calculateCostForState(i, measuredPPFDs[i]);
+
+                if (i == 0 || cost < minCost) {
+                    minCost = cost;
+                    finalState = i;
+                }
+            }
+
+            Serial.print("\n>>> Optimization Complete! Optimal Configuration State Applied: ");
+            Serial.println(finalState);
+
+            scanPhase = ScanPhase::FINAL_COMMAND;
+
+            return;
+        }
+
+        case ScanPhase::FINAL_COMMAND:
+        {
+            if (shades.setShades(finalState, true)) {
+                scanPhase = ScanPhase::FINAL_WAIT;
+            }
+
+            return;
+        }
+
+        case ScanPhase::FINAL_WAIT:
+        {
+            if (shades.isMoving()) {
+                return;
+            }
+
+            settleStartTime = millis();
+            scanPhase = ScanPhase::FINAL_SETTLE;
+
+            return;
+        }
+
+        case ScanPhase::FINAL_SETTLE:
+        {
+            if (millis() - settleStartTime < SETTLE_DELAY_MS) {
+                return;
+            }
+
+            isOptimizing = false;
+            scanPhase = ScanPhase::IDLE;
+
+            Serial.println(
+                "LightController: Final shade position stabilized."
+            );
+
+            return;
+        }
+
+        case ScanPhase::IDLE:
+        {
+            return;
+        }
     }
 }
 
