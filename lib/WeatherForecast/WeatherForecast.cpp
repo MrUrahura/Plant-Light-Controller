@@ -12,9 +12,11 @@
 WeatherForecast::WeatherForecast(const SettingsManager& settings, NetworkManager& network, const TimeManager& timeManager)
     : settings(settings), network(network), timeManager(timeManager) { }
 
-void WeatherForecast::update() {
+bool WeatherForecast::update() {
      // Calculate remaining DLI for the current hour to the end of the photoperiod
+    recentSuccess = false;
     calculateRemainingDLI();
+    return recentSuccess;
 }
 
 double WeatherForecast::getCompleteDayDLI() const {
@@ -164,6 +166,7 @@ void WeatherForecast::calculateRemainingDLI() {
                         remainingDLI += hourDLI;
                     }
                 }
+                recentSuccess = true;
             }
         } else {
             Serial.print("HTTP request failed. Code: ");
