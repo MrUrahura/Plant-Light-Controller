@@ -64,6 +64,7 @@ void WeatherForecast::calculateRemainingDLI() {
         WiFiClientSecure client;
         client.setInsecure();
         client.setTimeout(15000);
+        client.setHandshakeTimeout(15);
         
         HTTPClient http;
 

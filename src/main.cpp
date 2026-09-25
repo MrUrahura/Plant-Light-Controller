@@ -43,6 +43,7 @@ SystemState currentState = SystemState::BLUETOOTH_SETUP;
 // Shared system state flags
 bool scanInProgress = false;
 bool pendingClose = false;
+unsigned long timeSyncCompletedAt = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -126,6 +127,7 @@ void loop() {
 
       if (timeManager.isTimeSynced()) {
         Serial.println("System: Time synchronized.");
+        timeSyncCompletedAt = millis();
 
         // The initial weather update is handled in WAIT_FOR_WEATHER_UPDATE.
         currentState = SystemState::WAIT_FOR_WEATHER_UPDATE;
@@ -162,6 +164,19 @@ void loop() {
       if (!timeManager.isTimeSynced()) {
         Serial.println("System: Time synchronization lost. Waiting...");
         currentState = SystemState::WAIT_FOR_TIME_SYNC;
+        break;
+      }
+
+      // Give the WiFi/BLE coexistence scheduler time to settle after NTP completes before opening the first TLS connection.
+      if (millis() - timeSyncCompletedAt < 3000UL) {
+        break;
+      }
+
+      // Outside the photoperiod, defer sensor readiness retries and weather
+      // retrieval until the photoperiod starts.
+      if (!timeManager.withinPhotoperiod()) {
+        wasInPhotoperiod = false;
+        currentState = SystemState::READY;
         break;
       }
 
@@ -237,7 +252,9 @@ void loop() {
         break;
       }
 
-      if (!sensorReady) {
+      bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
+
+      if (!sensorReady && currentlyInPhotoperiod) {
         Serial.println("System: Light sensor unavailable. Pausing light control...");
         currentState = SystemState::WAIT_FOR_WEATHER_UPDATE;
         break;
@@ -263,8 +280,8 @@ void loop() {
 
       // Do not start a periodic weather update while a scan is in progress.
       if ((millis() - lastWeatherUpdate > 300000UL || firstWeatherUpdate)
-          && !scanInProgress) { // 5 mins
-        if (network.isConnected() && timeManager.isTimeSynced() && timeManager.withinPhotoperiod()) {
+          && !scanInProgress && currentlyInPhotoperiod) { // 5 mins
+        if (network.isConnected() && timeManager.isTimeSynced()) {
           Serial.println("System: Updating weather forecast curves...");
 
           // Requires weather.update() to return true on success and false on failure.
@@ -277,8 +294,6 @@ void loop() {
 
       // --- HARDWARE OPTIMIZATION STATE ---
       static unsigned long lastStateOptimize = 0;
-
-      bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
 
       // A scan must never issue another movement after the photoperiod ends.
       // Let ServoController finish any movement already in progress, then close.
