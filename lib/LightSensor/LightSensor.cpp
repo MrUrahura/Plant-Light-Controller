@@ -9,7 +9,15 @@ bool LightSensor::begin() {
 
     bool success = meter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
 
-    Serial.println(success ? "BH1750 OK" : "BH1750 FAILED");
+    if (success) {
+        if (!connected) {
+            Serial.println("BH1750 OK");
+        }
+    } else {
+        Serial.println("BH1750 FAILED");
+    }
+
+    connected = success;
 
     return success;
 }

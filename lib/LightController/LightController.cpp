@@ -18,10 +18,15 @@ LightController::LightController(
 {
 }
 
-void LightController::optimizeState() {
+bool LightController::optimizeState() {
     if (isOptimizing) {
         Serial.println("LightController: Scan sequence already running.");
-        return;
+        return false;
+    }
+
+    if (!timeManager.withinPhotoperiod()) {
+        Serial.println("LightController: Scan rejected outside the photoperiod.");
+        return false;
     }
 
     Serial.println("LightController: Starting physical shade sweep...");
@@ -31,11 +36,27 @@ void LightController::optimizeState() {
     isOptimizing = true;
     currentIndex = 0;
     scanPhase = ScanPhase::COMMAND;
+    return true;
+}
+
+void LightController::cancelOptimization() {
+    if (!isOptimizing) {
+        return;
+    }
+
+    isOptimizing = false;
+    scanPhase = ScanPhase::IDLE;
+    Serial.println("LightController: Scan cancelled because the photoperiod ended.");
 }
 
 void LightController::update() {
 
     if (!isOptimizing) {
+        return;
+    }
+
+    if (!timeManager.withinPhotoperiod()) {
+        cancelOptimization();
         return;
     }
 

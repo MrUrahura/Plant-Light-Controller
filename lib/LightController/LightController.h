@@ -19,7 +19,8 @@ public:
         const TimeManager& timeManager
     );
 
-    void optimizeState();
+    bool optimizeState();
+    void cancelOptimization();
     void update();
 
     bool isCurrentlyOptimizing() const {

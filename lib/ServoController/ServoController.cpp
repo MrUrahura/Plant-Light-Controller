@@ -13,48 +13,22 @@ ServoController::ServoController()
 }
 
 void ServoController::begin() {
-
-    // //Calibration Checks (Assuming all shades are closed at startup)
-    // attachServos();
-    // delay(1000);
-    // //Top Check
-    // topServo.write(REVERSE_SPEED);
-    // delay(1000);
-    // topServo.write(FORWARD_SPEED);
-    // delay(900);
-    // topServo.write(SERVO_STOP);
-    // //Left Check
-    // leftServo.write(REVERSE_SPEED);
-    // delay(1000);
-    // leftServo.write(FORWARD_SPEED);
-    // delay(900);
-    // leftServo.write(SERVO_STOP);
-    // //Right Check
-    // rightServo.write(FORWARD_SPEED);
-    // delay(1000);
-    // rightServo.write(REVERSE_SPEED);
-    // delay(RIGHT_CLOSE_TIME_MS);
-    // rightServo.write(SERVO_STOP);
-    // delay(900);
-
-    // delay(500);
-    // topServo.write(SERVO_STOP);
-    // leftServo.write(SERVO_STOP);
-    // rightServo.write(SERVO_STOP);
-    // delay(500);
-    // detachServos();
+    // Configure the PWM channels at startup, then release PWM before accepting commands.
+    attachServos();
+    detachServos();
 
     topMoving = false;
     leftMoving = false;
     rightMoving = false;
 
-    // Regular Operation Code
-    // prefs.begin("servos", true);
-    // shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
-    // prefs.end();
-    
     // Calibration Code: assume all shades begin closed due to manual intervention.
-    shadeState = static_cast<uint8_t>(ShadeID::ALL);
+    // shadeState = static_cast<uint8_t>(ShadeID::ALL);
+
+    // Regular Operation Code
+    prefs.begin("servos", true);
+    shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
+    prefs.end();
+    
     targetShadeState = shadeState;
     hasPendingState = false;
     saveOnComplete = false;
@@ -73,10 +47,17 @@ bool ServoController::setShades(ShadeID shades, bool saveToPrefs) {
 }
 
 bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
+    constexpr uint8_t VALID_SHADE_MASK = static_cast<uint8_t>(ShadeID::ALL);
+
     Serial.print("SERVO COMMAND: current=");
     Serial.print(shadeState);
     Serial.print(" target=");
     Serial.println(static_cast<uint8_t>(shades));
+
+    if ((shades & ~VALID_SHADE_MASK) != 0) {
+        Serial.println("ServoController: Command rejected - invalid shade state.");
+        return false;
+    }
     
     // A new movement cannot interrupt an existing movement.
     if (isMoving()) {
@@ -87,6 +68,7 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
     // Already at requested state.
     if (shades == shadeState) {
         Serial.println("ServoController: Already at requested state.");
+        detachServos();
         return true;
     }
 
@@ -171,21 +153,21 @@ void ServoController::update() {
 
     if (topMoving && (now - topStartTime >= topDuration))
     {
-        topServo.write(SERVO_STOP);
+        topServo.release();
         topMoving = false;
         Serial.println("Stopping top servo...");
     }
 
     if (leftMoving && (now - leftStartTime >= leftDuration))
     {
-        leftServo.write(SERVO_STOP);
+        leftServo.release();
         leftMoving = false;
         Serial.println("Stopping left servo...");
     }
 
     if (rightMoving && (now - rightStartTime >= rightDuration))
     {
-        rightServo.write(SERVO_STOP);
+        rightServo.release();
         rightMoving = false;
         Serial.println("Stopping right servo...");
     }
@@ -232,12 +214,15 @@ void ServoController::attachServos() {
 
 void ServoController::detachServos() {
     if (topServo.attached()) {
+        topServo.release();
         topServo.detach();
     }
     if (leftServo.attached()) {
+        leftServo.release();
         leftServo.detach();
     }
     if (rightServo.attached()) {
+        rightServo.release();
         rightServo.detach();
     }
 }

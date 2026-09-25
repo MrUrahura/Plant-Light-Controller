@@ -35,18 +35,17 @@ private:
     uint8_t targetShadeState;
     bool hasPendingState;
 
-    static constexpr uint8_t SERVO_STOP = 90;
     static constexpr uint8_t FORWARD_SPEED = 0;
     static constexpr uint8_t REVERSE_SPEED = 180;
 
-    static constexpr uint32_t TOP_OPEN_TIME_MS = 4500;
-    static constexpr uint32_t TOP_CLOSE_TIME_MS = 4200;
+    static constexpr uint32_t TOP_OPEN_TIME_MS = 4050;
+    static constexpr uint32_t TOP_CLOSE_TIME_MS = 3600;
 
     static constexpr uint32_t LEFT_OPEN_TIME_MS = 5300;
-    static constexpr uint32_t LEFT_CLOSE_TIME_MS = 5000;
+    static constexpr uint32_t LEFT_CLOSE_TIME_MS = 4800;
 
-    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 5300;
-    static constexpr uint32_t RIGHT_CLOSE_TIME_MS = 5000;
+    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 4600;
+    static constexpr uint32_t RIGHT_CLOSE_TIME_MS = 4400;
 
     bool topMoving;
     bool leftMoving;

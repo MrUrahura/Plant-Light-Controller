@@ -8,5 +8,6 @@ public:
 
 private:
     BH1750 meter;
+    bool connected = false;
     float readLuxLevel() const;
 };

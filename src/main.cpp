@@ -57,7 +57,6 @@ void setup() {
   appComm.begin();
 
   // Check whether the light sensor initialized successfully.
-  // Adapt this call to match the readiness method in your LightSensor class.
   sensorReady = sensor.readPPFDLevel() > 0;
 
   if (currentPlant.isConfigured() && settings.isFullConfigured()) {
@@ -244,9 +243,6 @@ void loop() {
         break;
       }
 
-      // Non-blocking light controlling operation to keep the checking also non-blocking along with the shades
-      lightControl.update();
-
       // --- SYSTEM-READY UPDATES ---
       // Keep updating our currentDLI
       dliTracker.update();
@@ -284,6 +280,17 @@ void loop() {
 
       bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
 
+      // A scan must never issue another movement after the photoperiod ends.
+      // Let ServoController finish any movement already in progress, then close.
+      if (!currentlyInPhotoperiod && lightControl.isCurrentlyOptimizing()) {
+        lightControl.cancelOptimization();
+      }
+
+      // Advance the scan only while the photoperiod is active.
+      if (currentlyInPhotoperiod) {
+        lightControl.update();
+      }
+
       // --- DETECT PHOTOPERIOD TRANSITIONS ---
       // Transition: inside -> outside the photoperiod.
       if (wasInPhotoperiod && !currentlyInPhotoperiod) {
@@ -302,6 +309,7 @@ void loop() {
       // Transition: outside -> inside the photoperiod.
       if (!wasInPhotoperiod && currentlyInPhotoperiod) {
         Serial.println("System: Photoperiod started.");
+        pendingClose = false;
       }
 
       // --- HANDLE SCAN COMPLETION ---
@@ -318,7 +326,7 @@ void loop() {
 
       // --- HANDLE PENDING CLOSURE ---
       // Close only after any active scan has finished.
-      if (pendingClose && !scanInProgress) {
+      if (!currentlyInPhotoperiod && pendingClose && !scanInProgress) {
         Serial.println("System: Closing shades until morning.");
 
         bool accepted = shades.setShades(ServoController::ShadeID::ALL, true);
@@ -337,8 +345,7 @@ void loop() {
           && (firstOptimization || millis() - lastStateOptimize > 300000UL)) {
         Serial.println("System: Recalculating optimum window blind positioning...");
 
-        lightControl.optimizeState();
-        scanInProgress = true;
+        scanInProgress = lightControl.optimizeState();
       }
 
       // --- UPDATE PHOTOPERIOD HISTORY ---
