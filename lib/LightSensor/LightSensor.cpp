@@ -9,20 +9,36 @@ bool LightSensor::begin() {
 
     bool success = meter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE);
 
-    Serial.println(success ? "BH1750 OK" : "BH1750 FAILED");
+    if (success) {
+        if (!connected) {
+            Serial.println("BH1750 OK");
+        }
+    } else {
+        Serial.println("BH1750 FAILED");
+    }
+
+    connected = success;
 
     return success;
 }
 
 double LightSensor::readPPFDLevel() const {
+    double ppfd = 0.0;
+    if (!tryReadPPFDLevel(ppfd)) {
+        Serial.println("LightSensor: Invalid lux reading.");
+    }
+    return ppfd;
+}
+
+bool LightSensor::tryReadPPFDLevel(double& ppfd) const {
     float lux = readLuxLevel();
 
-    if(lux < 0) {
-        Serial.println("LightSensor: Unexpected lux reading below 0.");
-        return 0.0;
+    if (lux < 0) {
+        return false;
     }
 
-    return static_cast<double>(lux) / 54.0; // Convert lux to PPFD (approximation)
+    ppfd = static_cast<double>(lux) / 54.0; // Convert lux to PPFD (approximation)
+    return true;
 }
 
 // Private helper function to read the light level in lux

@@ -2,19 +2,36 @@
 #include "ServoController.h"
 #include "Pins.h"
 
-ServoController::ServoController() {
-    
+ServoController::ServoController()
+    : shadeState(static_cast<uint8_t>(ShadeID::ALL)),
+    targetShadeState(static_cast<uint8_t>(ShadeID::ALL)),
+    hasPendingState(false),
+    topMoving(false),
+    leftMoving(false),
+    rightMoving(false)
+{
 }
 
 void ServoController::begin() {
-    // Attach Servos
-    topServo.attach(TOP_SERVO_PIN);
-    leftServo.attach(LEFT_SERVO_PIN);
-    rightServo.attach(RIGHT_SERVO_PIN);
-    
+    // Configure the PWM channels at startup, then release PWM before accepting commands.
+    attachServos();
+    detachServos();
+
+    topMoving = false;
+    leftMoving = false;
+    rightMoving = false;
+
+    // Calibration Code: assume all shades begin closed due to manual intervention.
+    // shadeState = static_cast<uint8_t>(ShadeID::ALL);
+
+    // Regular Operation Code
     prefs.begin("servos", true);
     shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
     prefs.end();
+    
+    targetShadeState = shadeState;
+    hasPendingState = false;
+    saveOnComplete = false;
 }
 
 uint8_t ServoController::getCurrentState() {
@@ -25,61 +42,105 @@ bool ServoController::areShadesClosed(ShadeID shades) const {
     return (shadeState & shades) != 0;
 }
 
-void ServoController::setShades(ShadeID shades) {
-    setShades(static_cast<uint8_t>(shades));
+bool ServoController::setShades(ShadeID shades, bool saveToPrefs) {
+    return setShades(static_cast<uint8_t>(shades), saveToPrefs);
 }
 
-void ServoController::setShades(uint8_t shades) {
-    if(shades == shadeState) return;
+bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
+    constexpr uint8_t VALID_SHADE_MASK = static_cast<uint8_t>(ShadeID::ALL);
+
+    Serial.print("SERVO COMMAND: current=");
+    Serial.print(shadeState);
+    Serial.print(" target=");
+    Serial.println(static_cast<uint8_t>(shades));
+
+    if ((shades & ~VALID_SHADE_MASK) != 0) {
+        Serial.println("ServoController: Command rejected - invalid shade state.");
+        return false;
+    }
     
+    // A new movement cannot interrupt an existing movement.
+    if (isMoving()) {
+        Serial.println("ServoController: Command rejected - servos are still moving.");
+        return false;
+    }
+
+    // Already at requested state.
+    if (shades == shadeState) {
+        Serial.println("ServoController: Already at requested state.");
+        detachServos();
+        return true;
+    }
+
+    attachServos();
+    saveOnComplete = saveToPrefs;
+    
+    targetShadeState = shades;
+    hasPendingState = true;
+
     // Top
-    if ((shadeState & ShadeID::TOP_SHADE) != (shades & ShadeID::TOP_SHADE))
+    if ((shadeState & static_cast<uint8_t>(ShadeID::TOP_SHADE)) !=
+        (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE)))
     {
-        if (shades & ShadeID::TOP_SHADE)
+        if (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE))
             moveServo(topServo, FORWARD_SPEED, TOP_CLOSE_TIME_MS);
         else
             moveServo(topServo, REVERSE_SPEED, TOP_OPEN_TIME_MS);
     }
 
     // Left
-    if ((shadeState & ShadeID::LEFT_SHADE) != (shades & ShadeID::LEFT_SHADE))
+    if ((shadeState & static_cast<uint8_t>(ShadeID::LEFT_SHADE)) !=
+        (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE)))
     {
-        if (shades & ShadeID::LEFT_SHADE)
+        if (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE))
             moveServo(leftServo, FORWARD_SPEED, LEFT_CLOSE_TIME_MS);
         else
             moveServo(leftServo, REVERSE_SPEED, LEFT_OPEN_TIME_MS);
     }
 
     // Right
-    if ((shadeState & ShadeID::RIGHT_SHADE) != (shades & ShadeID::RIGHT_SHADE))
+    if ((shadeState & static_cast<uint8_t>(ShadeID::RIGHT_SHADE)) !=
+        (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE)))
     {
-        if (shades & ShadeID::RIGHT_SHADE)
-            moveServo(rightServo, FORWARD_SPEED, RIGHT_CLOSE_TIME_MS);
+        if (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE))
+            moveServo(rightServo, REVERSE_SPEED, RIGHT_CLOSE_TIME_MS);
         else
-            moveServo(rightServo, REVERSE_SPEED, RIGHT_OPEN_TIME_MS);
+            moveServo(rightServo, FORWARD_SPEED, RIGHT_OPEN_TIME_MS);
     }
 
-    moveLoop();
-
-    shadeState = shades;
-    saveState();
+    return true;
 }
 
-void ServoController::moveServo(Servo& servo, uint8_t speed, uint32_t timeMs)
-{
-    Serial.println("Moving servo...");
+void ServoController::moveServo(Servo& servo, uint8_t speed, uint32_t timeMs) {
+    Serial.print("MOVING: ");
+    if (&servo == &topServo){
+        Serial.print("TOP");
+    } else if (&servo == &leftServo) {
+        Serial.print("LEFT");
+    } else if (&servo == &rightServo) {
+        Serial.print("RIGHT");
+    }
+    Serial.print(" speed=");
+    Serial.print(speed);
+    Serial.print(" duration=");
+    Serial.println(timeMs);
+
     servo.write(speed);
+
     if (&servo == &topServo) {
         topMoving = true;
-        topStopTime = millis() + timeMs;
+        topStartTime = millis();
+        topDuration = timeMs;
     }
     else if (&servo == &leftServo) {
         leftMoving = true;
-        leftStopTime = millis() + timeMs;
+        leftStartTime = millis();
+        leftDuration = timeMs;
     }
     else if (&servo == &rightServo) {
         rightMoving = true;
-        rightStopTime = millis() + timeMs;
+        rightStartTime = millis();
+        rightDuration = timeMs;
     }
 }
 
@@ -87,30 +148,49 @@ bool ServoController::isMoving() const {
     return topMoving || leftMoving || rightMoving;
 }
 
-void ServoController::moveLoop() {
-    while(isMoving()){
-        uint32_t now = millis();
+void ServoController::update() {
+    uint32_t now = millis();
 
-        if (topMoving && now >= topStopTime)
-        {
-            topServo.write(SERVO_STOP);
-            topMoving = false;
-            Serial.println("Stopping top servo...");
+    if (topMoving && (now - topStartTime >= topDuration))
+    {
+        topServo.release();
+        topMoving = false;
+        Serial.println("Stopping top servo...");
+    }
+
+    if (leftMoving && (now - leftStartTime >= leftDuration))
+    {
+        leftServo.release();
+        leftMoving = false;
+        Serial.println("Stopping left servo...");
+    }
+
+    if (rightMoving && (now - rightStartTime >= rightDuration))
+    {
+        rightServo.release();
+        rightMoving = false;
+        Serial.println("Stopping right servo...");
+    }
+
+    // Only now, after every servo has actually finished, does the controller commit the new state.
+    if (hasPendingState && !isMoving())
+    {
+        shadeState = targetShadeState;
+        hasPendingState = false;
+
+        if (saveOnComplete) {
+            digitalWrite(LED_BUILTIN, HIGH);
+            saveState();
+            Serial.println("ServoController: State saved to NVS.");
+            saveOnComplete = false;
+        } else {
+            digitalWrite(LED_BUILTIN, LOW);
+            Serial.println("ServoController: Scan step complete (NVS save skipped).");
         }
 
-        if (leftMoving && now >= leftStopTime)
-        {
-            leftServo.write(SERVO_STOP);
-            leftMoving = false;
-            Serial.println("Stopping left servo...");
-        }
-
-        if (rightMoving && now >= rightStopTime)
-        {
-            rightServo.write(SERVO_STOP);
-            rightMoving = false;
-            Serial.println("Stopping right servo...");
-        }
+        detachServos();
+        Serial.print("ServoController: Movement complete. State = ");
+        Serial.println(shadeState);
     }
 }
 
@@ -118,4 +198,31 @@ void ServoController::saveState() {
     prefs.begin("servos", false);
     prefs.putUChar("shadeState", shadeState);
     prefs.end();
+}
+
+void ServoController::attachServos() {
+    if (!topServo.attached()) {
+        topServo.attach(TOP_SERVO_PIN);
+    }
+    if (!leftServo.attached()) {
+        leftServo.attach(LEFT_SERVO_PIN);
+    }
+    if (!rightServo.attached()) {
+        rightServo.attach(RIGHT_SERVO_PIN);
+    }
+}
+
+void ServoController::detachServos() {
+    if (topServo.attached()) {
+        topServo.release();
+        topServo.detach();
+    }
+    if (leftServo.attached()) {
+        leftServo.release();
+        leftServo.detach();
+    }
+    if (rightServo.attached()) {
+        rightServo.release();
+        rightServo.detach();
+    }
 }

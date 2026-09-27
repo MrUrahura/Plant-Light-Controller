@@ -12,9 +12,20 @@
 WeatherForecast::WeatherForecast(const SettingsManager& settings, NetworkManager& network, const TimeManager& timeManager)
     : settings(settings), network(network), timeManager(timeManager) { }
 
-void WeatherForecast::update() {
+bool WeatherForecast::update() {
      // Calculate remaining DLI for the current hour to the end of the photoperiod
+    recentSuccess = false;
     calculateRemainingDLI();
+
+    // A BLE connection can temporarily contend with the WiFi radio while the
+    // TLS handshake is starting. Retry the complete request with a new client
+    // rather than retrying a stream that has already been consumed.
+    if (!recentSuccess) {
+        delay(250);
+        calculateRemainingDLI();
+    }
+
+    return recentSuccess;
 }
 
 double WeatherForecast::getCompleteDayDLI() const {
@@ -52,6 +63,8 @@ void WeatherForecast::calculateRemainingDLI() {
     if (network.isConnected()) {
         WiFiClientSecure client;
         client.setInsecure();
+        client.setTimeout(15000);
+        client.setHandshakeTimeout(15);
         
         HTTPClient http;
 
@@ -64,6 +77,7 @@ void WeatherForecast::calculateRemainingDLI() {
         Serial.print("Unix time: ");
         Serial.println(timeManager.getUnixTime());
         http.begin(client, url);
+        http.setReuse(false);
         http.useHTTP10(true);
         http.setTimeout(10000);
         int httpCode = http.GET();
@@ -90,20 +104,9 @@ void WeatherForecast::calculateRemainingDLI() {
             DynamicJsonDocument doc(4096); // 24KB buffer for the filtered elements
             
             DeserializationError jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
-            for(uint8_t attempt{0}; attempt < 3; ++attempt){
-                if(!jsonError){
-                    break;
-                }
-
+            if (jsonError) {
                 Serial.print("JSON Parsing failed: ");
                 Serial.println(jsonError.c_str());
-                if(attempt + 1 < 3){
-                    Serial.println("Retrying weather request...");
-                    jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
-                }
-            }
-
-            if (jsonError) {
                 http.end();
                 return;
             }
@@ -164,6 +167,7 @@ void WeatherForecast::calculateRemainingDLI() {
                         remainingDLI += hourDLI;
                     }
                 }
+                recentSuccess = true;
             }
         } else {
             Serial.print("HTTP request failed. Code: ");

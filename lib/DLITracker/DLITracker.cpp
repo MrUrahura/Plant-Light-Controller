@@ -29,7 +29,11 @@ void DLITracker::reset() {
 
 void DLITracker::update() {
     if(!timeManager.withinPhotoperiod()){
-        if(currentDLI > 0.0) reset();
+        if(currentDLI > 0.0) {
+            reset();
+        } else {
+            lastUpdateTime = timeManager.getUnixTime();
+        }
         return;
     }
     
@@ -40,7 +44,9 @@ void DLITracker::update() {
     if (elapsedSeconds <= 0) return;
 
     // Convert PPFD to DLI (mol/m²/day)
-    currentDLI += sensor.readPPFDLevel() * elapsedSeconds / 1000000.0;
+    double ppfd;
+    if (!sensor.tryReadPPFDLevel(ppfd)) return;
+    currentDLI += ppfd * elapsedSeconds / 1000000.0;
     
     lastUpdateTime = now;
 

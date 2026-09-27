@@ -6,7 +6,7 @@
 class WeatherForecast {
 public:
     WeatherForecast(const SettingsManager& settings, NetworkManager& network, const TimeManager& timeManager);
-    void update();
+    bool update();
     double getCompleteDayDLI() const;
     double getPhotoperiodDLI() const;
     double getRemainingDLI() const;
@@ -21,5 +21,6 @@ private:
     double remainingDLI;
     std::array<double, 24> hourlyDLI;
     void calculateRemainingDLI();
+    bool recentSuccess;
     double calculateClearSkyGHI(int hour) const;
 };
