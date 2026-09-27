@@ -13,5 +13,5 @@ public:
 private:
     const SettingsManager& settings;
     unsigned long lastReconnectAttempt = 0;
-    const unsigned long reconnectInterval = 30000; // Retry every 30 seconds
+    const unsigned long reconnectInterval = 10000; // Retry every 10 seconds
 };

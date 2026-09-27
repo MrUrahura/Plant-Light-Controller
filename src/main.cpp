@@ -53,6 +53,7 @@ const unsigned long SENSOR_CHECK_INTERVAL = 3000UL;
 const unsigned long INITIAL_WEATHER_RETRY_INTERVAL = 10000UL;
 const unsigned long WEATHER_UPDATE_CHECK_INTERVAL = 1800000UL;
 const unsigned long OPTIMIZATION_CHECK_INTERVAL = 1800000UL;
+const unsigned long INITIAL_OPTIMIZATION_RETRY_INTERVAL = 30000UL;
 
 void setup() {
   // put your setup code here, to run once:
@@ -68,6 +69,7 @@ void setup() {
   appComm.begin();
 
   if (currentPlant.isConfigured() && settings.isFullConfigured()) {
+    network.begin();
     currentState = SystemState::WAIT_FOR_WIFI;
   }
   else {
@@ -243,18 +245,15 @@ void loop() {
         break;
       }
 
-      if (!network.isConnected()) {
-        Serial.println("System: WiFi connection lost. Pausing light control...");
-        currentState = SystemState::WAIT_FOR_WIFI;
-        break;
-      }
-
       if (!timeManager.isTimeSynced()) {
         Serial.println("System: Time synchronization lost. Pausing light control...");
         currentState = SystemState::WAIT_FOR_TIME_SYNC;
         break;
       }
 
+      // Once time has been synchronized, shade optimization is local and can
+      // continue during temporary WiFi outages. Weather updates remain gated
+      // on connectivity below.
       bool currentlyInPhotoperiod = timeManager.withinPhotoperiod();
 
       if (!sensorReady && currentlyInPhotoperiod) {
@@ -328,9 +327,11 @@ void loop() {
         Serial.println("System: Physical shade scan complete.");
 
         scanInProgress = false;
-        firstOptimization = false;
+        if (lightControl.optimizationSucceeded()) {
+          firstOptimization = false;
+        }
 
-        // Start the rest interval after the scan has finished.
+        // Start the retry/rest interval after the scan has finished.
         lastStateOptimize = millis();
       }
 
@@ -351,8 +352,12 @@ void loop() {
       }
 
       // --- START A NEW OPTIMIZATION SCAN ---
+      bool optimizationDue = firstOptimization
+          ? (lastStateOptimize == 0
+              || millis() - lastStateOptimize > INITIAL_OPTIMIZATION_RETRY_INTERVAL)
+          : millis() - lastStateOptimize > OPTIMIZATION_CHECK_INTERVAL;
       if (currentlyInPhotoperiod && !scanInProgress && !shades.isMoving() && !pendingClose
-          && (firstOptimization || millis() - lastStateOptimize > OPTIMIZATION_CHECK_INTERVAL)) {
+          && optimizationDue) {
         Serial.println("System: Recalculating optimum window blind positioning...");
 
         scanInProgress = lightControl.optimizeState();

@@ -16,11 +16,11 @@ private:
     const SettingsManager& settings;
     NetworkManager& network;
     const TimeManager& timeManager;
-    double completeDayDLI;
-    double photoperiodDLI;
-    double remainingDLI;
-    std::array<double, 24> hourlyDLI;
+    double completeDayDLI = 0.0;
+    double photoperiodDLI = 0.0;
+    double remainingDLI = 0.0;
+    std::array<double, 24> hourlyDLI = {};
     void calculateRemainingDLI();
-    bool recentSuccess;
+    bool recentSuccess = false;
     double calculateClearSkyGHI(int hour) const;
 };

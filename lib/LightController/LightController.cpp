@@ -34,8 +34,11 @@ bool LightController::optimizeState() {
     updatePlannedHourlyDLI();
 
     isOptimizing = true;
+    optimizationCompleted = false;
     currentIndex = 0;
     scanPhase = ScanPhase::COMMAND;
+    sensorFailureTiming = false;
+    lastSensorReadAttempt = 0;
     return true;
 }
 
@@ -103,16 +106,31 @@ void LightController::update() {
 
         case ScanPhase::MEASURE:
         {
+            uint32_t now = millis();
+            if (now - lastSensorReadAttempt < SENSOR_RETRY_INTERVAL_MS) {
+                return;
+            }
+            lastSensorReadAttempt = now;
+
             uint8_t measuredState = SCAN_ORDER[currentIndex];
             double physicalReading;
             if (!sensor.tryReadPPFDLevel(physicalReading)) {
-                uint32_t now = millis();
+                if (!sensorFailureTiming) {
+                    sensorFailureStartTime = now;
+                    sensorFailureTiming = true;
+                }
                 if (now - lastSensorErrorLog >= 3000) {
                     Serial.println("LightController: Invalid light sensor reading; retrying measurement.");
                     lastSensorErrorLog = now;
                 }
+                if (now - sensorFailureStartTime >= SENSOR_FAILURE_TIMEOUT_MS) {
+                    Serial.println("LightController: Sensor did not recover; aborting this scan for a later retry.");
+                    isOptimizing = false;
+                    scanPhase = ScanPhase::IDLE;
+                }
                 return;
             }
+            sensorFailureTiming = false;
             measuredPPFDs[measuredState] = physicalReading;
 
             Serial.print("LightController: Captured Real PPFD for State ");
@@ -178,6 +196,7 @@ void LightController::update() {
             }
 
             isOptimizing = false;
+            optimizationCompleted = true;
             scanPhase = ScanPhase::IDLE;
 
             Serial.println(

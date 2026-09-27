@@ -68,11 +68,8 @@ void WeatherForecast::calculateRemainingDLI() {
         
         HTTPClient http;
 
-        Serial.print("API Key: ");
-        Serial.println(settings.getAPIKey());
         String url = "https://api.weatherapi.com/v1/forecast.json?key=" + String(settings.getAPIKey()) + "&q=" + String(settings.getLatitude(), 6) + "," + String(settings.getLongitude(), 6) + "&days=1&aqi=no&alerts=no";
-        Serial.print("Connecting to: ");
-        Serial.println(url);
+        Serial.println("Connecting to weather API...");
         
         Serial.print("Unix time: ");
         Serial.println(timeManager.getUnixTime());

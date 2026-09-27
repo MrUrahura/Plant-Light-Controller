@@ -63,8 +63,7 @@ void AppCommunication::onWrite(BLECharacteristic* pCharacteristic) {
     if (value.length() > 0) {
         String chunk = String(value.c_str());
 
-        Serial.println("BLE chunk received:");
-        Serial.println(chunk);
+        Serial.println("BLE data received.");
 
         bleBuffer += chunk;
 
@@ -110,8 +109,7 @@ void AppCommunication::onRead(BLECharacteristic* pCharacteristic) {
     pCharacteristic->setValue(output.c_str());
     pCharacteristic->notify();
 
-    Serial.println("BLE read request:");
-    Serial.println(output);
+    Serial.println("BLE read request handled.");
 }
 
 void AppCommunication::update() {
@@ -123,7 +121,7 @@ void AppCommunication::update() {
     String payload = bleBuffer;
     bleBuffer = "";
 
-    Serial.println("BLE Received raw text from phone: " + payload);
+    Serial.println("BLE configuration received.");
 
     // --- JSON SETUP ---
     // Allocate JSON memory block on the stack
@@ -195,6 +193,5 @@ void AppCommunication::updateBLEStatus() {
 
     pCharacteristic->setValue(output.c_str());
 
-    Serial.println("BLE status updated:");
-    Serial.println(output);
+    Serial.println("BLE status updated.");
 }

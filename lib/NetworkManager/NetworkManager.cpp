@@ -8,9 +8,8 @@ NetworkManager::NetworkManager(const SettingsManager& settings)
 
 void NetworkManager::begin(){
     WiFi.mode(WIFI_STA);
-    // Keep the radio awake while BLE is active. Power-save scheduling can
-    // interrupt the first TCP/TLS exchange after a Bluetooth write.
-    WiFi.setSleep(false);
+    // Wi-Fi modem sleep must remain enabled while Bluetooth is active.
+    WiFi.setSleep(true);
     connectWiFi();
 }
 
