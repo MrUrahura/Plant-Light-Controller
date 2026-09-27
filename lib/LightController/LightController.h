@@ -56,6 +56,7 @@ private:
     const uint8_t SCAN_ORDER[8] = {7, 6, 4, 5, 1, 0, 2, 3};
 
     uint32_t settleStartTime = 0;
+    uint32_t lastSensorErrorLog = 0;
     uint8_t finalState = 0;
     static constexpr uint32_t SETTLE_DELAY_MS = 200;
 

@@ -104,7 +104,15 @@ void LightController::update() {
         case ScanPhase::MEASURE:
         {
             uint8_t measuredState = SCAN_ORDER[currentIndex];
-            double physicalReading = sensor.readPPFDLevel();
+            double physicalReading;
+            if (!sensor.tryReadPPFDLevel(physicalReading)) {
+                uint32_t now = millis();
+                if (now - lastSensorErrorLog >= 3000) {
+                    Serial.println("LightController: Invalid light sensor reading; retrying measurement.");
+                    lastSensorErrorLog = now;
+                }
+                return;
+            }
             measuredPPFDs[measuredState] = physicalReading;
 
             Serial.print("LightController: Captured Real PPFD for State ");

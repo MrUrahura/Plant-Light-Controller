@@ -4,6 +4,7 @@
 class LightSensor {
 public:
     bool begin();
+    bool tryReadPPFDLevel(double& ppfd) const;
     double readPPFDLevel () const;
 
 private:

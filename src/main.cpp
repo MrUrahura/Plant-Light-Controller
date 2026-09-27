@@ -44,6 +44,15 @@ SystemState currentState = SystemState::BLUETOOTH_SETUP;
 bool scanInProgress = false;
 bool pendingClose = false;
 unsigned long timeSyncCompletedAt = 0;
+unsigned long lastWeatherAttempt = 0;
+
+// Constant times
+const unsigned long BLUETOOTH_LOG_INTERVAL = 3000UL;
+const unsigned long TIME_SYNC_RETRY_INTERVAL = 1000UL;
+const unsigned long SENSOR_CHECK_INTERVAL = 3000UL;
+const unsigned long INITIAL_WEATHER_RETRY_INTERVAL = 10000UL;
+const unsigned long WEATHER_UPDATE_CHECK_INTERVAL = 1800000UL;
+const unsigned long OPTIMIZATION_CHECK_INTERVAL = 1800000UL;
 
 void setup() {
   // put your setup code here, to run once:
@@ -52,13 +61,11 @@ void setup() {
   // Initialize components along with their "begin" or "load" method
   currentPlant.loadPlant();
   settings.load();
-  sensor.begin();
+  double initialPPFD;
+  sensorReady = sensor.begin() && sensor.tryReadPPFDLevel(initialPPFD);
   shades.begin();
   dliTracker.loadDLI();
   appComm.begin();
-
-  // Check whether the light sensor initialized successfully.
-  sensorReady = sensor.readPPFDLevel() > 0;
 
   if (currentPlant.isConfigured() && settings.isFullConfigured()) {
     currentState = SystemState::WAIT_FOR_WIFI;
@@ -89,7 +96,7 @@ void loop() {
     {
       // Periodically print a status message to the console every 3 seconds
       static unsigned long lastBluetoothLog = 0;
-      if (millis() - lastBluetoothLog > 3000UL) {
+      if (millis() - lastBluetoothLog > BLUETOOTH_LOG_INTERVAL) {
         Serial.println("System: Device unconfigured. Awaiting JSON payload from website...");
         lastBluetoothLog = millis();
       }
@@ -132,7 +139,7 @@ void loop() {
         // The initial weather update is handled in WAIT_FOR_WEATHER_UPDATE.
         currentState = SystemState::WAIT_FOR_WEATHER_UPDATE;
       }
-      else if (network.isConnected() && millis() - lastTimeSync > 1000UL) {
+      else if (network.isConnected() && millis() - lastTimeSync > TIME_SYNC_RETRY_INTERVAL) {
         Serial.println("System: Internal clock invalid. Re-attempting NTP Time Sync...");
         timeManager.begin();
         lastTimeSync = millis();
@@ -168,7 +175,7 @@ void loop() {
       }
 
       // Give the WiFi/BLE coexistence scheduler time to settle after NTP completes before opening the first TLS connection.
-      if (millis() - timeSyncCompletedAt < 3000UL) {
+      if (millis() - timeSyncCompletedAt < BLUETOOTH_LOG_INTERVAL) {
         break;
       }
 
@@ -181,50 +188,46 @@ void loop() {
       }
 
       if (!sensorReady) {
-        // Retry sensor initialization in case it was not ready at startup.
-        sensor.begin();
+        static unsigned long lastSensorCheck = 0;
+        unsigned long now = millis();
+        if (now - lastSensorCheck < SENSOR_CHECK_INTERVAL) {
+          break;
+        }
+        lastSensorCheck = now;
 
-        // Adapt this call to match the readiness method in your LightSensor class.
-        sensorReady = sensor.readPPFDLevel() > 0;
+        // Retry sensor initialization periodically in case it was not ready at startup.
+        double ppfd;
+        sensorReady = sensor.begin() && sensor.tryReadPPFDLevel(ppfd);
 
         if (!sensorReady) {
-          static unsigned long lastSensorLog = 0;
-
-          if (millis() - lastSensorLog > 3000UL) {
-            Serial.println("System: Light sensor is not ready. Retrying...");
-            lastSensorLog = millis();
-          }
-
+          Serial.println("System: Light sensor is not ready. Retrying...");
           break;
         }
       }
 
       // Initial weather update
       // Retry periodically until a successful forecast update is received.
-      static unsigned long lastWeatherAttempt = 0;
-
-      if (millis() - lastWeatherAttempt > 30000UL || lastWeatherAttempt == 0) {
+      if (millis() - lastWeatherAttempt > INITIAL_WEATHER_RETRY_INTERVAL || lastWeatherAttempt == 0) {
         if (network.isConnected() && timeManager.isTimeSynced()) {
           Serial.println("System: Performing initial weather forecast update...");
 
           // Requires weather.update() to return true on success and false on failure.
           bool weatherUpdated = weather.update();
-
           lastWeatherAttempt = millis();
 
           if (weatherUpdated) {
             Serial.println("System: Initial weather forecast received.");
 
             firstWeatherUpdate = false;
-
-            // Initialize photoperiod history to avoid detecting a false transition at startup.
-            wasInPhotoperiod = timeManager.withinPhotoperiod();
-
-            currentState = SystemState::READY;
           }
           else {
-            Serial.println("System: Initial weather update failed. Will retry.");
+            Serial.println("System: Initial weather update failed. Continuing light control and retrying.");
           }
+
+          // A missing forecast should not prevent the initial physical scan.
+          // LightController uses its PPFD target when no planned DLI is available.
+          wasInPhotoperiod = timeManager.withinPhotoperiod();
+          currentState = SystemState::READY;
         }
       }
 
@@ -264,29 +267,21 @@ void loop() {
       // Keep updating our currentDLI
       dliTracker.update();
 
-      // --- TIME SYNC MANAGER ---
-      // Periodically attempts an NTP sync if the internal clock is uninitialized
-      static unsigned long lastTimeSync = 0;
-      if (!timeManager.isTimeSynced() && millis() - lastTimeSync > 1000UL) {
-        if (network.isConnected()) {
-          Serial.println("System: Internal clock invalid. Re-attempting NTP Time Sync...");
-          timeManager.begin();
-          lastTimeSync = millis();
-        }
-      }
-
       // --- CLOUD WEATHER ENGINE (Every 5 minutes) ---
-      static unsigned long lastWeatherUpdate = 0;
-
       // Do not start a periodic weather update while a scan is in progress.
-      if ((millis() - lastWeatherUpdate > 300000UL || firstWeatherUpdate)
-          && !scanInProgress && currentlyInPhotoperiod) { // 5 mins
+      unsigned long weatherRetryInterval = firstWeatherUpdate
+          ? INITIAL_WEATHER_RETRY_INTERVAL
+          : WEATHER_UPDATE_CHECK_INTERVAL;
+      if ((lastWeatherAttempt == 0 || millis() - lastWeatherAttempt > weatherRetryInterval)
+          && !scanInProgress && currentlyInPhotoperiod) {
         if (network.isConnected() && timeManager.isTimeSynced()) {
           Serial.println("System: Updating weather forecast curves...");
 
           // Requires weather.update() to return true on success and false on failure.
-          if (weather.update()) {
-            lastWeatherUpdate = millis();
+          bool weatherUpdated = weather.update();
+          lastWeatherAttempt = millis();
+
+          if (weatherUpdated) {
             firstWeatherUpdate = false;
           }
         }
@@ -357,7 +352,7 @@ void loop() {
 
       // --- START A NEW OPTIMIZATION SCAN ---
       if (currentlyInPhotoperiod && !scanInProgress && !shades.isMoving() && !pendingClose
-          && (firstOptimization || millis() - lastStateOptimize > 300000UL)) {
+          && (firstOptimization || millis() - lastStateOptimize > OPTIMIZATION_CHECK_INTERVAL)) {
         Serial.println("System: Recalculating optimum window blind positioning...");
 
         scanInProgress = lightControl.optimizeState();
