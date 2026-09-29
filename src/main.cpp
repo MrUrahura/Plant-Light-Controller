@@ -16,15 +16,14 @@ LightSensor sensor;
 ServoController shades;
 SettingsManager settings;
 NetworkManager network(settings);
-AppCommunication appComm(currentPlant, settings);
 TimeManager timeManager(settings, network, currentPlant);
 DLITracker dliTracker(sensor, timeManager);
 WeatherForecast weather(settings, network, timeManager);
 LightController lightControl(currentPlant, sensor, shades, dliTracker, weather, timeManager);
+AppCommunication appComm(currentPlant, settings, shades, timeManager);
 
 // First run flags
 bool firstWeatherUpdate = true;
-bool firstOptimization = true;
 bool wasInPhotoperiod = false;
 
 // Sensor readiness flag
@@ -52,8 +51,6 @@ const unsigned long TIME_SYNC_RETRY_INTERVAL = 1000UL;
 const unsigned long SENSOR_CHECK_INTERVAL = 3000UL;
 const unsigned long INITIAL_WEATHER_RETRY_INTERVAL = 10000UL;
 const unsigned long WEATHER_UPDATE_CHECK_INTERVAL = 1800000UL;
-const unsigned long OPTIMIZATION_CHECK_INTERVAL = 1800000UL;
-const unsigned long INITIAL_OPTIMIZATION_RETRY_INTERVAL = 30000UL;
 
 void setup() {
   // put your setup code here, to run once:
@@ -62,8 +59,6 @@ void setup() {
   // Initialize components along with their "begin" or "load" method
   currentPlant.loadPlant();
   settings.load();
-  double initialPPFD;
-  sensorReady = sensor.begin() && sensor.tryReadPPFDLevel(initialPPFD);
   shades.begin();
   dliTracker.loadDLI();
   appComm.begin();
@@ -287,8 +282,6 @@ void loop() {
       }
 
       // --- HARDWARE OPTIMIZATION STATE ---
-      static unsigned long lastStateOptimize = 0;
-
       // A scan must never issue another movement after the photoperiod ends.
       // Let ServoController finish any movement already in progress, then close.
       if (!currentlyInPhotoperiod && lightControl.isCurrentlyOptimizing()) {
@@ -327,12 +320,6 @@ void loop() {
         Serial.println("System: Physical shade scan complete.");
 
         scanInProgress = false;
-        if (lightControl.optimizationSucceeded()) {
-          firstOptimization = false;
-        }
-
-        // Start the retry/rest interval after the scan has finished.
-        lastStateOptimize = millis();
       }
 
       // --- HANDLE PENDING CLOSURE ---
@@ -351,16 +338,29 @@ void loop() {
         }
       }
 
-      // --- START A NEW OPTIMIZATION SCAN ---
-      bool optimizationDue = firstOptimization
-          ? (lastStateOptimize == 0
-              || millis() - lastStateOptimize > INITIAL_OPTIMIZATION_RETRY_INTERVAL)
-          : millis() - lastStateOptimize > OPTIMIZATION_CHECK_INTERVAL;
-      if (currentlyInPhotoperiod && !scanInProgress && !shades.isMoving() && !pendingClose
-          && optimizationDue) {
-        Serial.println("System: Recalculating optimum window blind positioning...");
+      // --- START A MANUAL OR SCHEDULED OPTIMIZATION SCAN ---
+      bool manualOptimizationRequested = appComm.takeOptimizationRequest();
+      bool canStartOptimization = currentlyInPhotoperiod && !scanInProgress &&
+          !shades.isMoving() && !pendingClose;
 
+      if (manualOptimizationRequested) {
+        if (!currentlyInPhotoperiod) {
+          Serial.println("System: Manual optimization rejected outside the photoperiod.");
+        } else if (!canStartOptimization) {
+          Serial.println("System: Manual optimization rejected while the controller is busy.");
+        } else {
+          Serial.println("System: Starting manually requested optimization...");
+          scanInProgress = lightControl.optimizeState();
+          if (scanInProgress) {
+            timeManager.recordOptimization();
+          }
+        }
+      } else if (canStartOptimization && timeManager.getSecondsUntilNextOptimization() == 0) {
+        Serial.println("System: Scheduled optimization is due.");
         scanInProgress = lightControl.optimizeState();
+        if (scanInProgress) {
+          timeManager.recordOptimization();
+        }
       }
 
       // --- UPDATE PHOTOPERIOD HISTORY ---
@@ -368,5 +368,18 @@ void loop() {
 
       break;
     }
+  }
+
+  static unsigned long lastStatusUpdate = 0;
+  if (millis() - lastStatusUpdate >= 1000 || lastStatusUpdate == 0) {
+    const bool timeSynced = timeManager.isTimeSynced();
+    appComm.setControllerStatus(
+        timeSynced,
+        timeSynced && timeManager.withinPhotoperiod(),
+        lightControl.isCurrentlyOptimizing(),
+        timeSynced ? timeManager.getSecondsUntilNextOptimization() : -1,
+        timeSynced ? timeManager.getSecondsSincePreviousOptimization() : -1
+    );
+    lastStatusUpdate = millis();
   }
 }

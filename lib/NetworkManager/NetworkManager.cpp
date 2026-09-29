@@ -23,27 +23,16 @@ void NetworkManager::connectWiFi() {
         return;
     }
 
-    if (isConnected()) {
+    if (isConnected() || connectionAttemptInProgress) {
         return;
     }
 
     Serial.printf("NetworkManager: Initiating connection to %s...\n", settings.getSSID().c_str());
 
-    WiFi.disconnect();
     WiFi.begin(settings.getSSID().c_str(), settings.getPassword().c_str());
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("WiFi connected!");
-        // Serial.print("IP address: ");
-        // Serial.println(WiFi.localIP());
-        // Serial.print("RSSI: ");
-        // Serial.println(WiFi.RSSI());
-    } else {
-        Serial.print("WiFi failed. Status: ");
-        Serial.println(WiFi.status());
-    }
-
     lastReconnectAttempt = millis();
+    connectionAttemptInProgress = true;
+    Serial.println("NetworkManager: Connection attempt started.");
 }
 
 bool NetworkManager::isConnected() const {
@@ -51,12 +40,37 @@ bool NetworkManager::isConnected() const {
 }
 
 void NetworkManager::handle() {
-    // Non-blocking reconnection logic
-    if (!isConnected() && isConfigured()) {
-        unsigned long currentMillis = millis();
-        if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
-            Serial.println("NetworkManager: Connection lost. Retrying...");
-            connectWiFi();
+    if (isConnected()) {
+        if (connectionAttemptInProgress) {
+            Serial.println("NetworkManager: WiFi connected.");
+            connectionAttemptInProgress = false;
         }
+        return;
+    }
+
+    if (!isConfigured()) {
+        return;
+    }
+
+    const unsigned long currentMillis = millis();
+    if (connectionAttemptInProgress) {
+        if (currentMillis - lastReconnectAttempt >= connectionTimeout) {
+            const int status = WiFi.status();
+            Serial.print("NetworkManager: Connection attempt timed out. Status: ");
+            Serial.print(status);
+            if (status == WL_DISCONNECTED) {
+                Serial.print(" (WL_DISCONNECTED)");
+            }
+            Serial.println(".");
+            WiFi.disconnect(false, false);
+            connectionAttemptInProgress = false;
+            lastReconnectAttempt = currentMillis;
+        }
+        return;
+    }
+
+    if (currentMillis - lastReconnectAttempt >= reconnectInterval) {
+        Serial.println("NetworkManager: Retrying WiFi connection...");
+        connectWiFi();
     }
 }

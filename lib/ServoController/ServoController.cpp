@@ -27,7 +27,20 @@ void ServoController::begin() {
     // Regular Operation Code
     prefs.begin("servos", true);
     shadeState = prefs.getUChar("shadeState", static_cast<uint8_t>(ShadeID::ALL));
+    topOpenTimeMs = prefs.getUInt("topOpenMs", DEFAULT_TOP_OPEN_TIME_MS);
+    topCloseTimeMs = prefs.getUInt("topCloseMs", DEFAULT_TOP_CLOSE_TIME_MS);
+    leftOpenTimeMs = prefs.getUInt("leftOpenMs", DEFAULT_LEFT_OPEN_TIME_MS);
+    leftCloseTimeMs = prefs.getUInt("leftCloseMs", DEFAULT_LEFT_CLOSE_TIME_MS);
+    rightOpenTimeMs = prefs.getUInt("rightOpenMs", DEFAULT_RIGHT_OPEN_TIME_MS);
+    rightCloseTimeMs = prefs.getUInt("rightCloseMs", DEFAULT_RIGHT_CLOSE_TIME_MS);
     prefs.end();
+
+    if (topOpenTimeMs == 0 || topOpenTimeMs > 60000) topOpenTimeMs = DEFAULT_TOP_OPEN_TIME_MS;
+    if (topCloseTimeMs == 0 || topCloseTimeMs > 60000) topCloseTimeMs = DEFAULT_TOP_CLOSE_TIME_MS;
+    if (leftOpenTimeMs == 0 || leftOpenTimeMs > 60000) leftOpenTimeMs = DEFAULT_LEFT_OPEN_TIME_MS;
+    if (leftCloseTimeMs == 0 || leftCloseTimeMs > 60000) leftCloseTimeMs = DEFAULT_LEFT_CLOSE_TIME_MS;
+    if (rightOpenTimeMs == 0 || rightOpenTimeMs > 60000) rightOpenTimeMs = DEFAULT_RIGHT_OPEN_TIME_MS;
+    if (rightCloseTimeMs == 0 || rightCloseTimeMs > 60000) rightCloseTimeMs = DEFAULT_RIGHT_CLOSE_TIME_MS;
     
     targetShadeState = shadeState;
     hasPendingState = false;
@@ -83,9 +96,9 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE))
-            moveServo(topServo, FORWARD_SPEED, TOP_CLOSE_TIME_MS);
+            moveServo(topServo, FORWARD_SPEED, topCloseTimeMs);
         else
-            moveServo(topServo, REVERSE_SPEED, TOP_OPEN_TIME_MS);
+            moveServo(topServo, REVERSE_SPEED, topOpenTimeMs);
     }
 
     // Left
@@ -93,9 +106,9 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE))
-            moveServo(leftServo, FORWARD_SPEED, LEFT_CLOSE_TIME_MS);
+            moveServo(leftServo, FORWARD_SPEED, leftCloseTimeMs);
         else
-            moveServo(leftServo, REVERSE_SPEED, LEFT_OPEN_TIME_MS);
+            moveServo(leftServo, REVERSE_SPEED, leftOpenTimeMs);
     }
 
     // Right
@@ -103,13 +116,65 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE))
-            moveServo(rightServo, REVERSE_SPEED, RIGHT_CLOSE_TIME_MS);
+            moveServo(rightServo, REVERSE_SPEED, rightCloseTimeMs);
         else
-            moveServo(rightServo, FORWARD_SPEED, RIGHT_OPEN_TIME_MS);
+            moveServo(rightServo, FORWARD_SPEED, rightOpenTimeMs);
     }
 
     return true;
 }
+
+bool ServoController::setMovementTimes(
+    uint32_t newTopOpenMs,
+    uint32_t newTopCloseMs,
+    uint32_t newLeftOpenMs,
+    uint32_t newLeftCloseMs,
+    uint32_t newRightOpenMs,
+    uint32_t newRightCloseMs
+) {
+    constexpr uint32_t MIN_MOVEMENT_TIME_MS = 1;
+    constexpr uint32_t MAX_MOVEMENT_TIME_MS = 60000;
+    const uint32_t times[] = {
+        newTopOpenMs, newTopCloseMs, newLeftOpenMs,
+        newLeftCloseMs, newRightOpenMs, newRightCloseMs
+    };
+
+    for (uint32_t duration : times) {
+        if (duration < MIN_MOVEMENT_TIME_MS || duration > MAX_MOVEMENT_TIME_MS) {
+            Serial.println("ServoController: Movement times must be between 1 and 60000 ms.");
+            return false;
+        }
+    }
+
+    if (isMoving()) {
+        Serial.println("ServoController: Movement times cannot change while servos are moving.");
+        return false;
+    }
+
+    topOpenTimeMs = newTopOpenMs;
+    topCloseTimeMs = newTopCloseMs;
+    leftOpenTimeMs = newLeftOpenMs;
+    leftCloseTimeMs = newLeftCloseMs;
+    rightOpenTimeMs = newRightOpenMs;
+    rightCloseTimeMs = newRightCloseMs;
+
+    prefs.begin("servos", false);
+    prefs.putUInt("topOpenMs", topOpenTimeMs);
+    prefs.putUInt("topCloseMs", topCloseTimeMs);
+    prefs.putUInt("leftOpenMs", leftOpenTimeMs);
+    prefs.putUInt("leftCloseMs", leftCloseTimeMs);
+    prefs.putUInt("rightOpenMs", rightOpenTimeMs);
+    prefs.putUInt("rightCloseMs", rightCloseTimeMs);
+    prefs.end();
+    return true;
+}
+
+uint32_t ServoController::getTopOpenTimeMs() const { return topOpenTimeMs; }
+uint32_t ServoController::getTopCloseTimeMs() const { return topCloseTimeMs; }
+uint32_t ServoController::getLeftOpenTimeMs() const { return leftOpenTimeMs; }
+uint32_t ServoController::getLeftCloseTimeMs() const { return leftCloseTimeMs; }
+uint32_t ServoController::getRightOpenTimeMs() const { return rightOpenTimeMs; }
+uint32_t ServoController::getRightCloseTimeMs() const { return rightCloseTimeMs; }
 
 void ServoController::moveServo(Servo& servo, uint8_t speed, uint32_t timeMs) {
     Serial.print("MOVING: ");

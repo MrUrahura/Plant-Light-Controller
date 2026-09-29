@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <Preferences.h>
 #include "SettingsManager.h"
 #include "NetworkManager.h"
 #include "Plant.h"
@@ -18,9 +19,18 @@ public:
     String getCurrentDateString() const;
     bool withinPhotoperiod() const;
     time_t getUnixTime() const;
+    bool setOptimizationIntervalMinutes(int intervalMinutes);
+    uint8_t getOptimizationIntervalMinutes() const;
+    time_t getNextOptimizationTime() const;
+    int32_t getSecondsUntilNextOptimization() const;
+    int32_t getSecondsSincePreviousOptimization() const;
+    void recordOptimization();
 
 private:
     const SettingsManager& settings;
     const NetworkManager& network;
     const Plant& plant;
+    Preferences prefs;
+    uint8_t optimizationIntervalMinutes = 30;
+    time_t lastOptimizationTime = 0;
 };

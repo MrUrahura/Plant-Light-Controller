@@ -19,6 +19,20 @@ public:
     bool areShadesClosed(ShadeID shades) const;
     bool setShades(ShadeID shades, bool saveToPrefs);
     bool setShades(uint8_t shades, bool saveToPrefs);
+    bool setMovementTimes(
+        uint32_t topOpenMs,
+        uint32_t topCloseMs,
+        uint32_t leftOpenMs,
+        uint32_t leftCloseMs,
+        uint32_t rightOpenMs,
+        uint32_t rightCloseMs
+    );
+    uint32_t getTopOpenTimeMs() const;
+    uint32_t getTopCloseTimeMs() const;
+    uint32_t getLeftOpenTimeMs() const;
+    uint32_t getLeftCloseTimeMs() const;
+    uint32_t getRightOpenTimeMs() const;
+    uint32_t getRightCloseTimeMs() const;
     void update();
     bool isMoving() const;
 
@@ -38,14 +52,23 @@ private:
     static constexpr uint8_t FORWARD_SPEED = 0;
     static constexpr uint8_t REVERSE_SPEED = 180;
 
-    static constexpr uint32_t TOP_OPEN_TIME_MS = 3800;
-    static constexpr uint32_t TOP_CLOSE_TIME_MS = 3450;
+    static constexpr uint32_t DEFAULT_TOP_OPEN_TIME_MS = 3825;
+    static constexpr uint32_t DEFAULT_TOP_CLOSE_TIME_MS = 3450;
 
-    static constexpr uint32_t LEFT_OPEN_TIME_MS = 4950;
-    static constexpr uint32_t LEFT_CLOSE_TIME_MS = 4800;
+    static constexpr uint32_t DEFAULT_LEFT_OPEN_TIME_MS = 5000;
+    static constexpr uint32_t DEFAULT_LEFT_CLOSE_TIME_MS = 4800;
 
-    static constexpr uint32_t RIGHT_OPEN_TIME_MS = 4600;
-    static constexpr uint32_t RIGHT_CLOSE_TIME_MS = 4350;
+    static constexpr uint32_t DEFAULT_RIGHT_OPEN_TIME_MS = 4625;
+    static constexpr uint32_t DEFAULT_RIGHT_CLOSE_TIME_MS = 4350;
+
+    uint32_t topOpenTimeMs = DEFAULT_TOP_OPEN_TIME_MS;
+    uint32_t topCloseTimeMs = DEFAULT_TOP_CLOSE_TIME_MS;
+
+    uint32_t leftOpenTimeMs = DEFAULT_LEFT_OPEN_TIME_MS;
+    uint32_t leftCloseTimeMs = DEFAULT_LEFT_CLOSE_TIME_MS;
+
+    uint32_t rightOpenTimeMs = DEFAULT_RIGHT_OPEN_TIME_MS;
+    uint32_t rightCloseTimeMs = DEFAULT_RIGHT_CLOSE_TIME_MS;
 
     bool topMoving;
     bool leftMoving;

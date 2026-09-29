@@ -18,8 +18,13 @@ public:
     }
 };
 
-AppCommunication::AppCommunication(Plant& plant, SettingsManager& settings)
-    : plant(plant), settings(settings)
+AppCommunication::AppCommunication(
+    Plant& plant,
+    SettingsManager& settings,
+    ServoController& servos,
+    TimeManager& timeManager
+)
+    : plant(plant), settings(settings), servos(servos), timeManager(timeManager)
 {
     
 }
@@ -86,29 +91,7 @@ void AppCommunication::onWrite(BLECharacteristic* pCharacteristic) {
 }
 
 void AppCommunication::onRead(BLECharacteristic* pCharacteristic) {
-
-    JsonDocument doc;
-
-    doc["ssid"] = settings.getSSID();
-    doc["pass"] = settings.getPassword();
-    doc["apiKey"] = settings.getAPIKey();
-    doc["startHour"] = settings.getStartHour();
-    doc["lat"] = settings.getLatitude();
-    doc["lng"] = settings.getLongitude();
-    doc["tz"] = settings.getTimeZoneString();
-
-    doc["pName"] = plant.getName();
-    doc["pType"] = plant.getType();
-    doc["minDLI"] = plant.getMinDLI();
-    doc["maxDLI"] = plant.getMaxDLI();
-    doc["photo"] = plant.getPhotoperiod();
-
-    String output;
-    serializeJson(doc, output);
-
-    pCharacteristic->setValue(output.c_str());
-    pCharacteristic->notify();
-
+    updateBLEStatus();
     Serial.println("BLE read request handled.");
 }
 
@@ -136,28 +119,55 @@ void AppCommunication::update() {
 
     // --- NETWORK & REGIONAL CONFIGURATION SECTOR ---
     // If the phone passed network variables, extract and push to SettingsManager
-    if (doc.containsKey("ssid") && doc.containsKey("pass")) {
+    if (doc["ssid"].is<const char*>() && doc["pass"].is<const char*>()) {
         String ssid = doc["ssid"].as<String>();
         String pass = doc["pass"].as<String>();
         settings.setWiFi(ssid, pass);
     }
-    if (doc.containsKey("apiKey")) {
+    if (doc["apiKey"].is<const char*>()) {
         settings.setAPIKey(doc["apiKey"].as<String>());
     }
-    if (doc.containsKey("startHour")) {
+    if (doc["startHour"].is<int>()) {
         settings.setStartHour(doc["startHour"].as<int>());
     }
-    if (doc.containsKey("lat") && doc.containsKey("lng")) {
+    if (doc["lat"].is<double>() && doc["lng"].is<double>()) {
         settings.setLocation(doc["lat"].as<double>(), doc["lng"].as<double>());
     }
-    if (doc.containsKey("tz")) {
+    if (doc["tz"].is<const char*>()) {
         settings.setTimeZoneString(doc["tz"].as<String>());
+    }
+
+    if (doc["servoTopOpenMs"].is<uint32_t>() &&
+        doc["servoTopCloseMs"].is<uint32_t>() &&
+        doc["servoLeftOpenMs"].is<uint32_t>() &&
+        doc["servoLeftCloseMs"].is<uint32_t>() &&
+        doc["servoRightOpenMs"].is<uint32_t>() &&
+        doc["servoRightCloseMs"].is<uint32_t>()) {
+        if (!servos.setMovementTimes(
+                doc["servoTopOpenMs"].as<uint32_t>(),
+                doc["servoTopCloseMs"].as<uint32_t>(),
+                doc["servoLeftOpenMs"].as<uint32_t>(),
+                doc["servoLeftCloseMs"].as<uint32_t>(),
+                doc["servoRightOpenMs"].as<uint32_t>(),
+                doc["servoRightCloseMs"].as<uint32_t>())) {
+            Serial.println("BLE: Servo movement time update was rejected.");
+        }
+    }
+
+    if (doc["optimizationIntervalMinutes"].is<int>() &&
+        !timeManager.setOptimizationIntervalMinutes(doc["optimizationIntervalMinutes"].as<int>())) {
+        Serial.println("BLE: Optimization schedule update was rejected.");
+    }
+
+    if (doc["optimizeNow"].is<bool>() && doc["optimizeNow"].as<bool>()) {
+        optimizationRequested = true;
+        Serial.println("BLE: Manual optimization requested.");
     }
 
 
     // --- PLANT BIOLOGY CONFIGURATION SECTOR ---
     // Check if the phone app passed plant profile settings
-    if (doc.containsKey("pName") && doc.containsKey("photo")) {
+    if (doc["pName"].is<const char*>() && doc["photo"].is<int>()) {
         String pName = doc["pName"].as<String>();
         String pType = doc["pType"] | "Generic"; // Fallback text if type is skipped
         int minDLI = doc["minDLI"] | 10;
@@ -188,10 +198,43 @@ void AppCommunication::updateBLEStatus() {
     doc["maxDLI"] = plant.getMaxDLI();
     doc["photo"] = plant.getPhotoperiod();
 
+    doc["servoTopOpenMs"] = servos.getTopOpenTimeMs();
+    doc["servoTopCloseMs"] = servos.getTopCloseTimeMs();
+    doc["servoLeftOpenMs"] = servos.getLeftOpenTimeMs();
+    doc["servoLeftCloseMs"] = servos.getLeftCloseTimeMs();
+    doc["servoRightOpenMs"] = servos.getRightOpenTimeMs();
+    doc["servoRightCloseMs"] = servos.getRightCloseTimeMs();
+    doc["optimizationIntervalMinutes"] = timeManager.getOptimizationIntervalMinutes();
+    doc["timeSynced"] = controllerTimeSynced;
+    doc["inPhotoperiod"] = controllerInPhotoperiod;
+    doc["optimizing"] = controllerOptimizing;
+    doc["secondsUntilNextOptimization"] = secondsUntilNextOptimization;
+    doc["secondsSincePreviousOptimization"] = secondsSincePreviousOptimization;
+
     String output;
     serializeJson(doc, output);
 
     pCharacteristic->setValue(output.c_str());
 
     Serial.println("BLE status updated.");
+}
+
+bool AppCommunication::takeOptimizationRequest() {
+    const bool requested = optimizationRequested;
+    optimizationRequested = false;
+    return requested;
+}
+
+void AppCommunication::setControllerStatus(
+    bool timeSynced,
+    bool inPhotoperiod,
+    bool optimizing,
+    int32_t secondsUntilNext,
+    int32_t secondsSincePrevious
+) {
+    controllerTimeSynced = timeSynced;
+    controllerInPhotoperiod = inPhotoperiod;
+    controllerOptimizing = optimizing;
+    secondsUntilNextOptimization = secondsUntilNext;
+    secondsSincePreviousOptimization = secondsSincePrevious;
 }

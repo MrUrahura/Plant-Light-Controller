@@ -5,6 +5,18 @@ TimeManager::TimeManager(const SettingsManager& settings, const NetworkManager& 
     : settings(settings), network(network), plant(plant) { }
 
 void TimeManager::begin() {
+    if (prefs.begin("timeManager", false)) {
+        uint8_t storedInterval = prefs.getUChar("optInterval", 30);
+        if (storedInterval == 5 || storedInterval == 10 || storedInterval == 15 ||
+            storedInterval == 20 || storedInterval == 30 || storedInterval == 60) {
+            optimizationIntervalMinutes = storedInterval;
+        }
+        lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastOptimize", 0));
+        prefs.end();
+    } else {
+        Serial.println("TimeManager: Warning: Could not open preferences; using defaults.");
+    }
+
     if(network.isConnected()) {
         // Point the core clock engine to standard global time servers
         configTime(0, 0, "pool.ntp.org", "time.nist.gov");
@@ -93,4 +105,78 @@ bool TimeManager::withinPhotoperiod() const {
 
 time_t TimeManager::getUnixTime() const {
     return time(nullptr);
+}
+
+bool TimeManager::setOptimizationIntervalMinutes(int intervalMinutes) {
+    if (intervalMinutes != 5 && intervalMinutes != 10 && intervalMinutes != 15 &&
+        intervalMinutes != 20 && intervalMinutes != 30 && intervalMinutes != 60) {
+        Serial.println("TimeManager: Rejected unsupported optimization interval.");
+        return false;
+    }
+
+    if (optimizationIntervalMinutes == intervalMinutes) {
+        return true;
+    }
+
+    optimizationIntervalMinutes = static_cast<uint8_t>(intervalMinutes);
+    prefs.begin("timeManager", false);
+    prefs.putUChar("optInterval", optimizationIntervalMinutes);
+    prefs.end();
+    return true;
+}
+
+uint8_t TimeManager::getOptimizationIntervalMinutes() const {
+    return optimizationIntervalMinutes;
+}
+
+time_t TimeManager::getNextOptimizationTime() const {
+    if (!isTimeSynced()) {
+        return 0;
+    }
+
+    if (lastOptimizationTime == 0) {
+        return getUnixTime();
+    }
+
+    struct tm nextLocalTime = *localtime(&lastOptimizationTime);
+    nextLocalTime.tm_min =
+        (nextLocalTime.tm_min / optimizationIntervalMinutes + 1) * optimizationIntervalMinutes;
+    nextLocalTime.tm_sec = 0;
+    nextLocalTime.tm_isdst = -1;
+
+    time_t nextOptimization = mktime(&nextLocalTime);
+    while (nextOptimization <= lastOptimizationTime) {
+        nextLocalTime.tm_min += optimizationIntervalMinutes;
+        nextLocalTime.tm_isdst = -1;
+        nextOptimization = mktime(&nextLocalTime);
+    }
+    return nextOptimization;
+}
+
+int32_t TimeManager::getSecondsUntilNextOptimization() const {
+    const time_t nextOptimization = getNextOptimizationTime();
+    if (nextOptimization == 0) {
+        return -1;
+    }
+    const time_t remaining = nextOptimization - getUnixTime();
+    return remaining > 0 ? static_cast<int32_t>(remaining) : 0;
+}
+
+int32_t TimeManager::getSecondsSincePreviousOptimization() const {
+    if (lastOptimizationTime == 0 || !isTimeSynced()) {
+        return -1;
+    }
+    const time_t elapsed = getUnixTime() - lastOptimizationTime;
+    return elapsed > 0 ? static_cast<int32_t>(elapsed) : 0;
+}
+
+void TimeManager::recordOptimization() {
+    if (!isTimeSynced()) {
+        Serial.println("TimeManager: Cannot record an optimization without synchronized time.");
+        return;
+    }
+    lastOptimizationTime = getUnixTime();
+    prefs.begin("timeManager", false);
+    prefs.putULong64("lastOptimize", static_cast<uint64_t>(lastOptimizationTime));
+    prefs.end();
 }
