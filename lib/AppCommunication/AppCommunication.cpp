@@ -170,12 +170,13 @@ void AppCommunication::update() {
     if (doc["pName"].is<const char*>() && doc["photo"].is<int>()) {
         String pName = doc["pName"].as<String>();
         String pType = doc["pType"] | "Generic"; // Fallback text if type is skipped
+        String pStage = doc["pStage"] | "";
         int minDLI = doc["minDLI"] | 10;
         int maxDLI = doc["maxDLI"] | 20;
         int photoperiod = doc["photo"].as<int>();
 
         // Push directly into your live Plant reference
-        plant.setPlant(pName, pType, minDLI, maxDLI, photoperiod);
+        plant.setPlant(pName, pType, pStage, minDLI, maxDLI, photoperiod);
     }
 
     Serial.println("BLE Sync Complete: Settings and Plant definitions updated successfully!");
@@ -184,32 +185,49 @@ void AppCommunication::update() {
 void AppCommunication::updateBLEStatus() {
     JsonDocument doc;
 
-    doc["ssid"] = settings.getSSID();
-    doc["pass"] = settings.getPassword();
-    doc["apiKey"] = settings.getAPIKey();
-    doc["startHour"] = settings.getStartHour();
-    doc["lat"] = settings.getLatitude();
-    doc["lng"] = settings.getLongitude();
-    doc["tz"] = settings.getTimeZoneString();
+    JsonArray network = doc["network"].to<JsonArray>();
+    network.add(settings.getSSID());
+    network.add(settings.getPassword());
+    network.add(settings.getAPIKey());
+    network.add(settings.getStartHour());
+    network.add(settings.getLatitude());
+    network.add(settings.getLongitude());
+    network.add(settings.getTimeZoneString());
 
-    doc["pName"] = plant.getName();
-    doc["pType"] = plant.getType();
-    doc["minDLI"] = plant.getMinDLI();
-    doc["maxDLI"] = plant.getMaxDLI();
-    doc["photo"] = plant.getPhotoperiod();
+    JsonArray plantData = doc["plant"].to<JsonArray>();
+    plantData.add(plant.getName());
+    plantData.add(plant.getType());
+    plantData.add(plant.getStage());
+    plantData.add(plant.getMinDLI());
+    plantData.add(plant.getMaxDLI());
+    plantData.add(plant.getPhotoperiod());
+    plantData.add(plant.getTargetDLI());
+    plantData.add(plant.getTargetPPFD());
 
-    doc["servoTopOpenMs"] = servos.getTopOpenTimeMs();
-    doc["servoTopCloseMs"] = servos.getTopCloseTimeMs();
-    doc["servoLeftOpenMs"] = servos.getLeftOpenTimeMs();
-    doc["servoLeftCloseMs"] = servos.getLeftCloseTimeMs();
-    doc["servoRightOpenMs"] = servos.getRightOpenTimeMs();
-    doc["servoRightCloseMs"] = servos.getRightCloseTimeMs();
-    doc["optimizationIntervalMinutes"] = timeManager.getOptimizationIntervalMinutes();
-    doc["timeSynced"] = controllerTimeSynced;
-    doc["inPhotoperiod"] = controllerInPhotoperiod;
-    doc["optimizing"] = controllerOptimizing;
-    doc["secondsUntilNextOptimization"] = secondsUntilNextOptimization;
-    doc["secondsSincePreviousOptimization"] = secondsSincePreviousOptimization;
+    JsonArray servosData = doc["servos"].to<JsonArray>();
+    const uint8_t shadeState = servos.getCurrentState();
+    const uint8_t targetShadeState = servos.getTargetState();
+    const uint8_t movingState =
+        (servos.isTopMoving() ? static_cast<uint8_t>(ServoController::ShadeID::TOP_SHADE) : 0) |
+        (servos.isLeftMoving() ? static_cast<uint8_t>(ServoController::ShadeID::LEFT_SHADE) : 0) |
+        (servos.isRightMoving() ? static_cast<uint8_t>(ServoController::ShadeID::RIGHT_SHADE) : 0);
+    servosData.add(shadeState);
+    servosData.add(targetShadeState);
+    servosData.add(movingState);
+    servosData.add(servos.getTopOpenTimeMs());
+    servosData.add(servos.getTopCloseTimeMs());
+    servosData.add(servos.getLeftOpenTimeMs());
+    servosData.add(servos.getLeftCloseTimeMs());
+    servosData.add(servos.getRightOpenTimeMs());
+    servosData.add(servos.getRightCloseTimeMs());
+
+    JsonArray controller = doc["controller"].to<JsonArray>();
+    controller.add(timeManager.getOptimizationIntervalMinutes());
+    controller.add(controllerTimeSynced);
+    controller.add(controllerInPhotoperiod);
+    controller.add(controllerOptimizing);
+    controller.add(secondsUntilNextOptimization);
+    controller.add(secondsSincePreviousOptimization);
 
     String output;
     serializeJson(doc, output);

@@ -16,7 +16,11 @@ public:
     };
 
     uint8_t getCurrentState();
+    uint8_t getTargetState() const;
     bool areShadesClosed(ShadeID shades) const;
+    bool isTopMoving() const;
+    bool isLeftMoving() const;
+    bool isRightMoving() const;
     bool setShades(ShadeID shades, bool saveToPrefs);
     bool setShades(uint8_t shades, bool saveToPrefs);
     bool setMovementTimes(

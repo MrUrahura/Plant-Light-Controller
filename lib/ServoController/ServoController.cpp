@@ -51,6 +51,22 @@ uint8_t ServoController::getCurrentState() {
     return shadeState;
 }
 
+uint8_t ServoController::getTargetState() const {
+    return targetShadeState;
+}
+
+bool ServoController::isTopMoving() const {
+    return topMoving;
+}
+
+bool ServoController::isLeftMoving() const {
+    return leftMoving;
+}
+
+bool ServoController::isRightMoving() const {
+    return rightMoving;
+}
+
 bool ServoController::areShadesClosed(ShadeID shades) const {
     return (shadeState & shades) != 0;
 }

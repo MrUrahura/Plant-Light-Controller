@@ -4,11 +4,19 @@
 
 class Plant {
 public:
-    void setPlant(const String& name, const String& type, int minDLI, int maxDLI, int photoperiod);
+    void setPlant(
+        const String& name,
+        const String& type,
+        const String& stage,
+        int minDLI,
+        int maxDLI,
+        int photoperiod
+    );
     void loadPlant();
 
     const String& getName() const;
     const String& getType() const;
+    const String& getStage() const;
     double getTargetDLI() const;
     int getMinDLI() const;
     int getMaxDLI() const;
@@ -19,6 +27,7 @@ public:
 private:
     String name;
     String type;
+    String stage;
     double targetDLI;
     int minDLI;
     int maxDLI;
