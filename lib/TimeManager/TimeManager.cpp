@@ -6,12 +6,22 @@ TimeManager::TimeManager(const SettingsManager& settings, const NetworkManager& 
 
 void TimeManager::begin() {
     if (prefs.begin("timeManager", false)) {
+        constexpr uint8_t PREFERENCES_VERSION = 1;
+        const uint8_t storedVersion = prefs.getUChar("schemaVersion", 0);
+        if (storedVersion < PREFERENCES_VERSION) {
+            // Older firmware saved the attempt timestamp as a completed optimization.
+            prefs.remove("lastOptimize");
+            prefs.remove("lastAttempt");
+            prefs.putUChar("schemaVersion", PREFERENCES_VERSION);
+            Serial.println("TimeManager: Cleared legacy optimization history that may include incomplete scans.");
+        }
+
         uint8_t storedInterval = prefs.getUChar("optInterval", 30);
         if (storedInterval == 5 || storedInterval == 10 || storedInterval == 15 ||
             storedInterval == 20 || storedInterval == 30 || storedInterval == 60) {
             optimizationIntervalMinutes = storedInterval;
         }
-        lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastOptimize", 0));
+        lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastSuccess", 0));
         lastOptimizationAttemptTime =
             static_cast<time_t>(prefs.getULong64("lastAttempt", 0));
         prefs.end();
@@ -193,6 +203,6 @@ void TimeManager::recordOptimization() {
     }
     lastOptimizationTime = getUnixTime();
     prefs.begin("timeManager", false);
-    prefs.putULong64("lastOptimize", static_cast<uint64_t>(lastOptimizationTime));
+    prefs.putULong64("lastSuccess", static_cast<uint64_t>(lastOptimizationTime));
     prefs.end();
 }

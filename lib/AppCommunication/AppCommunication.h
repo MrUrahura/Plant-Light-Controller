@@ -21,7 +21,9 @@ public:
         bool inPhotoperiod,
         bool optimizing,
         int32_t secondsUntilNextOptimization,
-        int32_t secondsSincePreviousOptimization
+        int32_t secondsSincePreviousOptimization,
+        uint8_t optimizationProgress,
+        bool optimizationFailed
     );
 
 private:
@@ -39,6 +41,8 @@ private:
     bool controllerOptimizing = false;
     int32_t secondsUntilNextOptimization = -1;
     int32_t secondsSincePreviousOptimization = -1;
+    uint8_t optimizationProgress = 0;
+    bool optimizationFailed = false;
     String bleBuffer;
     bool receivingData = false;
 };

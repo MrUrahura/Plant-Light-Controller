@@ -3,7 +3,7 @@
 
 LightController::LightController(
     const Plant& plant,
-    const LightSensor& sensor,
+    LightSensor& sensor,
     ServoController& shades,
     const DLITracker& dliTracker,
     const WeatherForecast& weather,
@@ -35,10 +35,12 @@ bool LightController::optimizeState() {
 
     isOptimizing = true;
     optimizationCompleted = false;
+    optimizationFailedFlag = false;
     currentIndex = 0;
     scanPhase = ScanPhase::COMMAND;
     sensorFailureTiming = false;
     lastSensorReadAttempt = 0;
+    lastSensorRecoveryAttempt = 0;
     return true;
 }
 
@@ -48,6 +50,7 @@ void LightController::cancelOptimization() {
     }
 
     isOptimizing = false;
+    optimizationFailedFlag = true;
     scanPhase = ScanPhase::IDLE;
     Serial.println("LightController: Scan cancelled because the photoperiod ended.");
 }
@@ -123,9 +126,18 @@ void LightController::update() {
                     Serial.println("LightController: Invalid light sensor reading; retrying measurement.");
                     lastSensorErrorLog = now;
                 }
+                if (lastSensorRecoveryAttempt == 0 ||
+                    now - lastSensorRecoveryAttempt >= SENSOR_RECOVERY_INTERVAL_MS) {
+                    lastSensorRecoveryAttempt = now;
+                    Serial.println("LightController: Reinitializing the light sensor after a failed reading.");
+                    if (!sensor.begin()) {
+                        Serial.println("LightController: Light sensor reinitialization failed.");
+                    }
+                }
                 if (now - sensorFailureStartTime >= SENSOR_FAILURE_TIMEOUT_MS) {
                     Serial.println("LightController: Sensor did not recover; aborting this scan for a later retry.");
                     isOptimizing = false;
+                    optimizationFailedFlag = true;
                     scanPhase = ScanPhase::IDLE;
                 }
                 return;

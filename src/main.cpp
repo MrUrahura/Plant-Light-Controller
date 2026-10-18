@@ -384,7 +384,9 @@ void loop() {
         timeSynced && timeManager.withinPhotoperiod(),
         lightControl.isCurrentlyOptimizing(),
         timeSynced ? timeManager.getSecondsUntilNextOptimization() : -1,
-        timeSynced ? timeManager.getSecondsSincePreviousOptimization() : -1
+        timeSynced ? timeManager.getSecondsSincePreviousOptimization() : -1,
+        lightControl.getOptimizationProgress(),
+        lightControl.optimizationFailed()
     );
     lastStatusUpdate = millis();
   }

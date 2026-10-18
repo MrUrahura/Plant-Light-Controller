@@ -12,7 +12,7 @@ class LightController {
 public:
     LightController(
         const Plant& plant,
-        const LightSensor& sensor,
+        LightSensor& sensor,
         ServoController& shades,
         const DLITracker& dliTracker,
         const WeatherForecast& weather,
@@ -30,9 +30,17 @@ public:
         return isOptimizing;
     }
 
+    uint8_t getOptimizationProgress() const {
+        return currentIndex;
+    }
+
+    bool optimizationFailed() const {
+        return optimizationFailedFlag;
+    }
+
 private:
     const Plant& plant;
-    const LightSensor& sensor;
+    LightSensor& sensor;
     ServoController& shades;
     const DLITracker& dliTracker;
     const WeatherForecast& weather;
@@ -44,6 +52,7 @@ private:
 
     bool isOptimizing = false;
     bool optimizationCompleted = false;
+    bool optimizationFailedFlag = false;
     uint8_t currentIndex = 0;
     enum class ScanPhase {
         IDLE,
@@ -64,9 +73,11 @@ private:
     uint32_t lastSensorReadAttempt = 0;
     uint32_t sensorFailureStartTime = 0;
     bool sensorFailureTiming = false;
+    uint32_t lastSensorRecoveryAttempt = 0;
     uint8_t finalState = 0;
     static constexpr uint32_t SETTLE_DELAY_MS = 200;
     static constexpr uint32_t SENSOR_RETRY_INTERVAL_MS = 1000;
+    static constexpr uint32_t SENSOR_RECOVERY_INTERVAL_MS = 5000;
     static constexpr uint32_t SENSOR_FAILURE_TIMEOUT_MS = 30000;
 
     std::array<double, 8> measuredPPFDs = {0.0};

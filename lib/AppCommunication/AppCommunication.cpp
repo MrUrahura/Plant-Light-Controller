@@ -228,6 +228,8 @@ void AppCommunication::updateBLEStatus() {
     controller.add(controllerOptimizing);
     controller.add(secondsUntilNextOptimization);
     controller.add(secondsSincePreviousOptimization);
+    controller.add(optimizationProgress);
+    controller.add(optimizationFailed);
 
     String output;
     serializeJson(doc, output);
@@ -248,11 +250,15 @@ void AppCommunication::setControllerStatus(
     bool inPhotoperiod,
     bool optimizing,
     int32_t secondsUntilNext,
-    int32_t secondsSincePrevious
+    int32_t secondsSincePrevious,
+    uint8_t progress,
+    bool failed
 ) {
     controllerTimeSynced = timeSynced;
     controllerInPhotoperiod = inPhotoperiod;
     controllerOptimizing = optimizing;
     secondsUntilNextOptimization = secondsUntilNext;
     secondsSincePreviousOptimization = secondsSincePrevious;
+    optimizationProgress = progress;
+    optimizationFailed = failed;
 }
