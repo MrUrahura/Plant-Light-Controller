@@ -24,6 +24,7 @@ public:
     time_t getNextOptimizationTime() const;
     int32_t getSecondsUntilNextOptimization() const;
     int32_t getSecondsSincePreviousOptimization() const;
+    void recordOptimizationAttempt();
     void recordOptimization();
 
 private:
@@ -32,5 +33,6 @@ private:
     const Plant& plant;
     Preferences prefs;
     uint8_t optimizationIntervalMinutes = 30;
+    time_t lastOptimizationAttemptTime = 0;
     time_t lastOptimizationTime = 0;
 };

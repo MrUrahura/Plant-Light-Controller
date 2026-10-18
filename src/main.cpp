@@ -317,7 +317,13 @@ void loop() {
       // --- HANDLE SCAN COMPLETION ---
       // This check is independent of the current photoperiod.
       if (scanInProgress && !lightControl.isCurrentlyOptimizing()) {
-        Serial.println("System: Physical shade scan complete.");
+        if (lightControl.optimizationSucceeded()) {
+          Serial.println("System: Physical shade optimization completed successfully.");
+          timeManager.recordOptimization();
+        }
+        else {
+          Serial.println("System: Physical shade optimization ended before completion.");
+        }
 
         scanInProgress = false;
       }
@@ -352,14 +358,14 @@ void loop() {
           Serial.println("System: Starting manually requested optimization...");
           scanInProgress = lightControl.optimizeState();
           if (scanInProgress) {
-            timeManager.recordOptimization();
+            timeManager.recordOptimizationAttempt();
           }
         }
       } else if (canStartOptimization && timeManager.getSecondsUntilNextOptimization() == 0) {
         Serial.println("System: Scheduled optimization is due.");
         scanInProgress = lightControl.optimizeState();
         if (scanInProgress) {
-          timeManager.recordOptimization();
+          timeManager.recordOptimizationAttempt();
         }
       }
 

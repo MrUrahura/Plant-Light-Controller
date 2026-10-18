@@ -12,6 +12,8 @@ void TimeManager::begin() {
             optimizationIntervalMinutes = storedInterval;
         }
         lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastOptimize", 0));
+        lastOptimizationAttemptTime =
+            static_cast<time_t>(prefs.getULong64("lastAttempt", 0));
         prefs.end();
     } else {
         Serial.println("TimeManager: Warning: Could not open preferences; using defaults.");
@@ -134,18 +136,21 @@ time_t TimeManager::getNextOptimizationTime() const {
         return 0;
     }
 
-    if (lastOptimizationTime == 0) {
+    const time_t lastOptimization = lastOptimizationAttemptTime > lastOptimizationTime
+        ? lastOptimizationAttemptTime
+        : lastOptimizationTime;
+    if (lastOptimization == 0) {
         return getUnixTime();
     }
 
-    struct tm nextLocalTime = *localtime(&lastOptimizationTime);
+    struct tm nextLocalTime = *localtime(&lastOptimization);
     nextLocalTime.tm_min =
         (nextLocalTime.tm_min / optimizationIntervalMinutes + 1) * optimizationIntervalMinutes;
     nextLocalTime.tm_sec = 0;
     nextLocalTime.tm_isdst = -1;
 
     time_t nextOptimization = mktime(&nextLocalTime);
-    while (nextOptimization <= lastOptimizationTime) {
+    while (nextOptimization <= lastOptimization) {
         nextLocalTime.tm_min += optimizationIntervalMinutes;
         nextLocalTime.tm_isdst = -1;
         nextOptimization = mktime(&nextLocalTime);
@@ -168,6 +173,17 @@ int32_t TimeManager::getSecondsSincePreviousOptimization() const {
     }
     const time_t elapsed = getUnixTime() - lastOptimizationTime;
     return elapsed > 0 ? static_cast<int32_t>(elapsed) : 0;
+}
+
+void TimeManager::recordOptimizationAttempt() {
+    if (!isTimeSynced()) {
+        Serial.println("TimeManager: Cannot record an optimization attempt without synchronized time.");
+        return;
+    }
+    lastOptimizationAttemptTime = getUnixTime();
+    prefs.begin("timeManager", false);
+    prefs.putULong64("lastAttempt", static_cast<uint64_t>(lastOptimizationAttemptTime));
+    prefs.end();
 }
 
 void TimeManager::recordOptimization() {
