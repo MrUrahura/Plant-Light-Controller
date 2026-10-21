@@ -24,6 +24,7 @@ AppCommunication appComm(currentPlant, settings, shades, timeManager);
 
 // First run flags
 bool firstWeatherUpdate = true;
+bool weatherForecastRead = false;
 bool wasInPhotoperiod = false;
 
 // Sensor readiness flag
@@ -171,6 +172,11 @@ void loop() {
         break;
       }
 
+      if (scanInProgress) {
+        currentState = SystemState::READY;
+        break;
+      }
+
       // Give the WiFi/BLE coexistence scheduler time to settle after NTP completes before opening the first TLS connection.
       if (millis() - timeSyncCompletedAt < BLUETOOTH_LOG_INTERVAL) {
         break;
@@ -204,7 +210,8 @@ void loop() {
 
       // Initial weather update
       // Retry periodically until a successful forecast update is received.
-      if (millis() - lastWeatherAttempt > INITIAL_WEATHER_RETRY_INTERVAL || lastWeatherAttempt == 0) {
+      if ((millis() - lastWeatherAttempt > INITIAL_WEATHER_RETRY_INTERVAL || lastWeatherAttempt == 0)
+          && !scanInProgress) {
         if (network.isConnected() && timeManager.isTimeSynced()) {
           Serial.println("System: Performing initial weather forecast update...");
 
@@ -216,6 +223,7 @@ void loop() {
             Serial.println("System: Initial weather forecast received.");
 
             firstWeatherUpdate = false;
+            weatherForecastRead = true;
           }
           else {
             Serial.println("System: Initial weather update failed. Continuing light control and retrying.");
@@ -277,6 +285,7 @@ void loop() {
 
           if (weatherUpdated) {
             firstWeatherUpdate = false;
+            weatherForecastRead = true;
           }
         }
       }
@@ -323,6 +332,7 @@ void loop() {
         }
         else {
           Serial.println("System: Physical shade optimization ended before completion.");
+          timeManager.recordOptimizationFailure();
         }
 
         scanInProgress = false;
@@ -386,7 +396,9 @@ void loop() {
         timeSynced ? timeManager.getSecondsUntilNextOptimization() : -1,
         timeSynced ? timeManager.getSecondsSincePreviousOptimization() : -1,
         lightControl.getOptimizationProgress(),
-        lightControl.optimizationFailed()
+        lightControl.optimizationFailed(),
+        network.isConnected(),
+        weatherForecastRead
     );
     lastStatusUpdate = millis();
   }

@@ -23,7 +23,9 @@ public:
         int32_t secondsUntilNextOptimization,
         int32_t secondsSincePreviousOptimization,
         uint8_t optimizationProgress,
-        bool optimizationFailed
+        bool optimizationFailed,
+        bool wifiConnected,
+        bool weatherRead
     );
 
 private:
@@ -39,6 +41,8 @@ private:
     bool controllerTimeSynced = false;
     bool controllerInPhotoperiod = false;
     bool controllerOptimizing = false;
+    bool controllerWifiConnected = false;
+    bool controllerWeatherRead = false;
     int32_t secondsUntilNextOptimization = -1;
     int32_t secondsSincePreviousOptimization = -1;
     uint8_t optimizationProgress = 0;

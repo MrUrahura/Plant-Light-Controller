@@ -98,7 +98,7 @@ void WeatherForecast::calculateRemainingDLI() {
             hourFields["cloud"] = true;
             hourFields["condition"]["text"] = true;
             
-            DynamicJsonDocument doc(4096); // 24KB buffer for the filtered elements
+            DynamicJsonDocument doc(24 * 1024);
             
             DeserializationError jsonError = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
             if (jsonError) {

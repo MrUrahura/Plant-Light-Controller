@@ -87,6 +87,17 @@ private:
     uint32_t rightStartTime = 0;
 
     void moveServo(Servo& servo, uint8_t speed, uint32_t timeMs);
+    void startOrQueueMove(Servo& servo, uint8_t speed, uint32_t timeMs);
+    struct QueuedServoMove {
+        Servo* servo;
+        uint8_t speed;
+        uint32_t duration;
+    };
+    QueuedServoMove queuedMoves[2] = {};
+    uint8_t queuedMoveCount = 0;
+    uint8_t nextQueuedMove = 0;
+    uint32_t nextQueuedMoveAt = 0;
+    static constexpr uint32_t SERVO_START_STAGGER_MS = 200;
     bool saveOnComplete = false;
     void saveState();
     void attachServos();

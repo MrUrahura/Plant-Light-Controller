@@ -25,6 +25,7 @@ public:
     int32_t getSecondsUntilNextOptimization() const;
     int32_t getSecondsSincePreviousOptimization() const;
     void recordOptimizationAttempt();
+    void recordOptimizationFailure();
     void recordOptimization();
 
 private:
@@ -32,7 +33,12 @@ private:
     const NetworkManager& network;
     const Plant& plant;
     Preferences prefs;
+    bool preferencesLoaded = false;
+    bool ntpConfigured = false;
     uint8_t optimizationIntervalMinutes = 30;
+    bool optimizationRetryPending = false;
     time_t lastOptimizationAttemptTime = 0;
     time_t lastOptimizationTime = 0;
+    time_t lastOptimizationFailureTime = 0;
+    static constexpr time_t OPTIMIZATION_RETRY_BACKOFF_SECONDS = 60;
 };

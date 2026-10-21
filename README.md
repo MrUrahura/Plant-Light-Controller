@@ -1,4 +1,5 @@
 # Plant Light Controller
+<img src="images/build/Final_Build.png" alt="Final Build Image" width="600">
 
 This repository contains the firmware for an ESP32-based plant-light and shade
 controller. It reads ambient light, moves three shades, and uses a plant's
@@ -40,7 +41,10 @@ An optimization scan visits each of the eight combinations of three open or
 closed shades. After each movement finishes, the firmware waits for the
 reading to settle, measures light, scores that state against the target, then
 applies the best-scoring state. The main loop continues servicing BLE,
-network reconnection, and servo motion while a scan advances. A failed sensor
+network reconnection, and servo motion while a scan advances. When a shade
+state requires multiple servos, their starts are staggered by 200 ms to reduce
+simultaneous startup current. Failed scans are retried after a 60-second
+backoff, while manual optimization requests remain available. A failed sensor
 reading aborts that scan for a later retry; it does not turn the controller's
 approximate measurements into guaranteed plant-light levels.
 
@@ -65,7 +69,7 @@ The main modules are under `lib/`:
 | `WeatherForecast` | Requests hourly cloud information from WeatherAPI and estimates sunlight/DLI using a clear-sky model adjusted for cloud cover. |
 | `NetworkManager` | Connects and reconnects to Wi-Fi without blocking the main loop. |
 | `SettingsManager` | Loads and saves Wi-Fi, API, location, start-time, and time-zone settings. |
-| `AppCommunication` | Hosts the BLE service, reads/writes JSON configuration, and reports plant, servo, and controller status. |
+| `AppCommunication` | Hosts the BLE service, reads/writes JSON configuration, and reports plant, servo, Wi-Fi, time-sync, weather, and controller status. |
 
 Plant settings, Wi-Fi settings, servo timings, and schedule information are
 stored in ESP32 Preferences (non-volatile storage), so they normally survive a
@@ -104,8 +108,8 @@ around 5 volts, more than the ESP32 board's 3.3 volt supply: split the 5 volt po
 supply among the ESP32 and servos and connect the servos' ground to ESP32 ground.
 Do not power the servos from an ESP32 GPIO. Check the voltage and wiring of your
 particular boards before powering the assembly. Use proper gauges for the signal
-and power lines. See my [full wiring diagrams](images/wiring/diagram/) as physical sketches
-or my [physical wiring](images/wiring/physical).
+and power lines. See my [full wiring diagrams](images/wiring/diagram/) as physical
+sketches or my [physical wiring](images/wiring/physical) for the final build.
 
 The controller uses timed servo movement. Set and test the open and close
 durations for the actual shade mechanics before unattended use.

@@ -103,6 +103,8 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
 
     attachServos();
     saveOnComplete = saveToPrefs;
+    queuedMoveCount = 0;
+    nextQueuedMove = 0;
     
     targetShadeState = shades;
     hasPendingState = true;
@@ -112,9 +114,9 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::TOP_SHADE))
-            moveServo(topServo, FORWARD_SPEED, topCloseTimeMs);
+            startOrQueueMove(topServo, FORWARD_SPEED, topCloseTimeMs);
         else
-            moveServo(topServo, REVERSE_SPEED, topOpenTimeMs);
+            startOrQueueMove(topServo, REVERSE_SPEED, topOpenTimeMs);
     }
 
     // Left
@@ -122,9 +124,9 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::LEFT_SHADE))
-            moveServo(leftServo, FORWARD_SPEED, leftCloseTimeMs);
+            startOrQueueMove(leftServo, FORWARD_SPEED, leftCloseTimeMs);
         else
-            moveServo(leftServo, REVERSE_SPEED, leftOpenTimeMs);
+            startOrQueueMove(leftServo, REVERSE_SPEED, leftOpenTimeMs);
     }
 
     // Right
@@ -132,9 +134,9 @@ bool ServoController::setShades(uint8_t shades, bool saveToPrefs) {
         (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE)))
     {
         if (shades & static_cast<uint8_t>(ShadeID::RIGHT_SHADE))
-            moveServo(rightServo, REVERSE_SPEED, rightCloseTimeMs);
+            startOrQueueMove(rightServo, REVERSE_SPEED, rightCloseTimeMs);
         else
-            moveServo(rightServo, FORWARD_SPEED, rightOpenTimeMs);
+            startOrQueueMove(rightServo, FORWARD_SPEED, rightOpenTimeMs);
     }
 
     return true;
@@ -225,12 +227,31 @@ void ServoController::moveServo(Servo& servo, uint8_t speed, uint32_t timeMs) {
     }
 }
 
+void ServoController::startOrQueueMove(Servo& servo, uint8_t speed, uint32_t timeMs) {
+    if (!isMoving()) {
+        moveServo(servo, speed, timeMs);
+        nextQueuedMoveAt = millis() + SERVO_START_STAGGER_MS;
+        return;
+    }
+
+    if (queuedMoveCount < 2) {
+        queuedMoves[queuedMoveCount++] = {&servo, speed, timeMs};
+    }
+}
+
 bool ServoController::isMoving() const {
-    return topMoving || leftMoving || rightMoving;
+    return topMoving || leftMoving || rightMoving || nextQueuedMove < queuedMoveCount;
 }
 
 void ServoController::update() {
     uint32_t now = millis();
+
+    if (nextQueuedMove < queuedMoveCount &&
+        static_cast<int32_t>(now - nextQueuedMoveAt) >= 0) {
+        const QueuedServoMove& queuedMove = queuedMoves[nextQueuedMove++];
+        moveServo(*queuedMove.servo, queuedMove.speed, queuedMove.duration);
+        nextQueuedMoveAt = now + SERVO_START_STAGGER_MS;
+    }
 
     if (topMoving && (now - topStartTime >= topDuration))
     {
@@ -269,6 +290,8 @@ void ServoController::update() {
             Serial.println("ServoController: Scan step complete (NVS save skipped).");
         }
 
+        queuedMoveCount = 0;
+        nextQueuedMove = 0;
         detachServos();
         Serial.print("ServoController: Movement complete. State = ");
         Serial.println(shadeState);

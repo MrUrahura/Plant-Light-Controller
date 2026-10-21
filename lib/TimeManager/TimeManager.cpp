@@ -5,58 +5,44 @@ TimeManager::TimeManager(const SettingsManager& settings, const NetworkManager& 
     : settings(settings), network(network), plant(plant) { }
 
 void TimeManager::begin() {
-    if (prefs.begin("timeManager", false)) {
-        constexpr uint8_t PREFERENCES_VERSION = 1;
-        const uint8_t storedVersion = prefs.getUChar("schemaVersion", 0);
-        if (storedVersion < PREFERENCES_VERSION) {
-            // Older firmware saved the attempt timestamp as a completed optimization.
-            prefs.remove("lastOptimize");
-            prefs.remove("lastAttempt");
-            prefs.putUChar("schemaVersion", PREFERENCES_VERSION);
-            Serial.println("TimeManager: Cleared legacy optimization history that may include incomplete scans.");
-        }
+    if (!preferencesLoaded) {
+        if (prefs.begin("timeManager", false)) {
+            constexpr uint8_t PREFERENCES_VERSION = 1;
+            const uint8_t storedVersion = prefs.getUChar("schemaVersion", 0);
+            if (storedVersion < PREFERENCES_VERSION) {
+                // Older firmware saved the attempt timestamp as a completed optimization.
+                prefs.remove("lastOptimize");
+                prefs.remove("lastAttempt");
+                prefs.putUChar("schemaVersion", PREFERENCES_VERSION);
+                Serial.println("TimeManager: Cleared legacy optimization history that may include incomplete scans.");
+            }
 
-        uint8_t storedInterval = prefs.getUChar("optInterval", 30);
-        if (storedInterval == 5 || storedInterval == 10 || storedInterval == 15 ||
-            storedInterval == 20 || storedInterval == 30 || storedInterval == 60) {
-            optimizationIntervalMinutes = storedInterval;
+            uint8_t storedInterval = prefs.getUChar("optInterval", 30);
+            if (storedInterval == 5 || storedInterval == 10 || storedInterval == 15 ||
+                storedInterval == 20 || storedInterval == 30 || storedInterval == 60) {
+                optimizationIntervalMinutes = storedInterval;
+            }
+            lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastSuccess", 0));
+            lastOptimizationAttemptTime = static_cast<time_t>(prefs.getULong64("lastAttempt", 0));
+            lastOptimizationFailureTime = static_cast<time_t>(prefs.getULong64("lastFailure", 0));
+            optimizationRetryPending = prefs.getBool("retryPending", false) || lastOptimizationAttemptTime > lastOptimizationTime;
+            prefs.end();
+        } else {
+            Serial.println("TimeManager: Warning: Could not open preferences; using defaults.");
         }
-        lastOptimizationTime = static_cast<time_t>(prefs.getULong64("lastSuccess", 0));
-        lastOptimizationAttemptTime =
-            static_cast<time_t>(prefs.getULong64("lastAttempt", 0));
-        prefs.end();
-    } else {
-        Serial.println("TimeManager: Warning: Could not open preferences; using defaults.");
+        preferencesLoaded = true;
     }
 
-    if(network.isConnected()) {
-        // Point the core clock engine to standard global time servers
+    if (network.isConnected() && !ntpConfigured) {
         configTime(0, 0, "pool.ntp.org", "time.nist.gov");
         Serial.println("Waiting for time synchronization...");
 
-        unsigned long startAttempt = millis();
-        while (!isTimeSynced() && (millis() - startAttempt < 5000)) {
-            delay(100);
-        }
-
-        if(isTimeSynced()){
-            // Pull the raw POSIX string out of your settings manager pointer (e.g., "PST8PDT,M3.2.0,M11.1.0")
-            String tzRule = settings.getTimeZoneString();
-            Serial.println(settings.getTimeZoneString());
-            
-            // Inject the rule directly into the ESP32 system environment variables
-            setenv("TZ", tzRule.c_str(), 1); 
-            // Forces the system clock to instantly re-calculate local time based on the new rule
-            tzset();
-
-            Serial.println("TimeManager: Time synchronized.");
-            Serial.print("Current hour: ");
-            Serial.println(getHour());
-        } else {
-            Serial.println("TimeManager: Warning: NTP response timed out. Will retry in background loop.");
-        }
-    } else {
-        Serial.println("TimeManager: Warning: Not connected to WiFi. Time synchronization skipped. Will retry in background loop.");
+        const String tzRule = settings.getTimeZoneString();
+        setenv("TZ", tzRule.c_str(), 1);
+        tzset();
+        ntpConfigured = true;
+    } else if (!network.isConnected()) {
+        Serial.println("TimeManager: Not connected to WiFi. Time synchronization will start after reconnection.");
     }
 }
 
@@ -146,6 +132,15 @@ time_t TimeManager::getNextOptimizationTime() const {
         return 0;
     }
 
+    if (optimizationRetryPending) {
+        const time_t retryBaseTime = lastOptimizationFailureTime > lastOptimizationAttemptTime
+            ? lastOptimizationFailureTime
+            : lastOptimizationAttemptTime;
+        return retryBaseTime != 0
+            ? retryBaseTime + OPTIMIZATION_RETRY_BACKOFF_SECONDS
+            : getUnixTime();
+    }
+
     const time_t lastOptimization = lastOptimizationAttemptTime > lastOptimizationTime
         ? lastOptimizationAttemptTime
         : lastOptimizationTime;
@@ -196,13 +191,35 @@ void TimeManager::recordOptimizationAttempt() {
     prefs.end();
 }
 
+void TimeManager::recordOptimizationFailure() {
+    optimizationRetryPending = true;
+    if (isTimeSynced()) {
+        lastOptimizationFailureTime = getUnixTime();
+    }
+    if (!prefs.begin("timeManager", false)) {
+        Serial.println("TimeManager: Warning: Could not persist the optimization retry state.");
+        return;
+    }
+    prefs.putBool("retryPending", true);
+    if (lastOptimizationFailureTime != 0) {
+        prefs.putULong64("lastFailure", static_cast<uint64_t>(lastOptimizationFailureTime));
+    }
+    prefs.end();
+}
+
 void TimeManager::recordOptimization() {
     if (!isTimeSynced()) {
         Serial.println("TimeManager: Cannot record an optimization without synchronized time.");
         return;
     }
     lastOptimizationTime = getUnixTime();
+    lastOptimizationAttemptTime = lastOptimizationTime;
+    lastOptimizationFailureTime = 0;
+    optimizationRetryPending = false;
     prefs.begin("timeManager", false);
     prefs.putULong64("lastSuccess", static_cast<uint64_t>(lastOptimizationTime));
+    prefs.putULong64("lastAttempt", static_cast<uint64_t>(lastOptimizationAttemptTime));
+    prefs.putULong64("lastFailure", 0);
+    prefs.putBool("retryPending", false);
     prefs.end();
 }

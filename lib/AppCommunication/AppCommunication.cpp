@@ -230,6 +230,8 @@ void AppCommunication::updateBLEStatus() {
     controller.add(secondsSincePreviousOptimization);
     controller.add(optimizationProgress);
     controller.add(optimizationFailed);
+    controller.add(controllerWifiConnected);
+    controller.add(controllerWeatherRead);
 
     String output;
     serializeJson(doc, output);
@@ -252,11 +254,15 @@ void AppCommunication::setControllerStatus(
     int32_t secondsUntilNext,
     int32_t secondsSincePrevious,
     uint8_t progress,
-    bool failed
+    bool failed,
+    bool wifiConnected,
+    bool weatherRead
 ) {
     controllerTimeSynced = timeSynced;
     controllerInPhotoperiod = inPhotoperiod;
     controllerOptimizing = optimizing;
+    controllerWifiConnected = wifiConnected;
+    controllerWeatherRead = weatherRead;
     secondsUntilNextOptimization = secondsUntilNext;
     secondsSincePreviousOptimization = secondsSincePrevious;
     optimizationProgress = progress;
