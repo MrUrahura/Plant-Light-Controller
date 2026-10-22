@@ -205,13 +205,13 @@ JSON field names/array layout in sync when changing the protocol.
 - For the first 8 days:
   - Control group: 7.1 cups 3 times per week (total 1.3 gallons per week)
   - Experimental group: 5 cups 3 times per week (total 0.91 gallons per week)
-  - see the [image of growth](images/experiment/Schedule_Change_Comparison.png) until the end of this period
+  - See the [image of growth](images/experiment/Schedule_Change_Comparison.png) until the end of this period
 
 - For the next 19 days (in order to prevent dryness and pests):
   - Both groups: A bit of food grade diatomaceous earth at the base of each sapling
   - Control group: 3.05 cups daily (total 1.3 gallons per week)
   - Experimental group: 2.15 cups daily (total 0.91 gallongs per week)
-  - see the [image of growth](images/experiment/Near_Final_Comparison.png) in the middle of this period
+  - See the [image of growth](images/experiment/Near_Final_Comparison.png) in the middle of this period
 
 ### Results
 <img src="images/experiment/Final_Comparison.png" alt="Final Comparison Image" width="600">
