@@ -1,5 +1,5 @@
 # Plant Light Controller
-<img src="images/build/Final_Build.png" alt="Final Build Image" width="600">
+<img src="images/build/Build_Final.png" alt="Final Build Image" width="600">
 
 This repository contains the firmware for an ESP32-based plant-light and shade
 controller. It reads ambient light, moves three shades, and uses a plant's
@@ -23,8 +23,8 @@ Bluetooth is used for setup and status.
 - Exposes configuration and live controller status over Bluetooth Low Energy
   (BLE).
 
-This is a project prototype. The BH1750 lux-to-PPFD conversion and the
-weather-derived sunlight estimate are approximations, not laboratory
+This is an operating project prototype. The BH1750 lux-to-PPFD conversion and 
+the weather-derived sunlight estimate are approximations, not laboratory
 measurements or horticultural advice.
 
 ## Operating sequence
@@ -191,3 +191,34 @@ JSON field names/array layout in sync when changing the protocol.
 - If scheduled operation does not start, confirm configuration, Wi-Fi, NTP
   time, and that the current time is inside the photoperiod.
 - Keep Wi-Fi passwords and API keys out of source control and public logs.
+
+## Testing and results
+### Experiment
+<img src="images/experiment/Initial_Comparison.png" alt="Initial Comparison Image" width="600">
+
+- Both groups: 2 rows of radishes planted 1/2 inches deep spaced 2 inches
+  apart with the rows 4 inches apart.
+- Control group (grown in a regular plant-box): 1.5 cubic feet, 2.1 square square 
+  feet, 3 initial gallons of water
+- Experimental group (grown with my custom box): 1.4 cubic feet, 1.5 square feet,
+  2 initial gallons of water
+- For the first 8 days:
+  - Control group: 7.1 cups 3 times per week (total 1.3 gallons per week)
+  - Experimental group: 5 cups 3 times per week (total 0.91 gallons per week)
+  - see the [image of growth](images/experiment/Schedule_Change_Comparison.png) until the end of this period
+
+- For the next 19 days (in order to prevent dryness and pests):
+  - Both groups: A bit of food grade diatomaceous earth at the base of each sapling
+  - Control group: 3.05 cups daily (total 1.3 gallons per week)
+  - Experimental group: 2.15 cups daily (total 0.91 gallongs per week)
+  - see the [image of growth](images/experiment/Near_Final_Comparison.png) in the middle of this period
+
+### Results
+<img src="images/experiment/Final_Comparison.png" alt="Final Comparison Image" width="600">
+As seen in the image, the radishes in the experimental group in my custom box (despite
+some being accidentaly planted closer together) grew much more and much larger compared
+to the control group. Despite the small experimental groups due to the limited scale of
+the prototype, I have high confidence in these results since I personally ensured that
+every part of their growth other than the presence or lack thereof of the box were strictly
+identical. This shows the success of my box in increasing growth efficiency by controlling
+the sunlight received which is what it set out to do.
