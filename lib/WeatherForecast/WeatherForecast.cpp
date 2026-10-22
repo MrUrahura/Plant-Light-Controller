@@ -2,6 +2,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <cmath>
+#include <cstdio>
 #include "WeatherForecast.h"
 
 // Define M_PI if not defined in order to use it in calculations
@@ -49,11 +50,8 @@ void WeatherForecast::calculateRemainingDLI() {
     int startHour = timeManager.getPhotoperiodStartTime();
     int endHour = timeManager.getPhotoperiodEndTime();
     
-    // Guard rails to prevent buffer overflows or index out of bounds errors
-    if (startHour < 0) startHour = 0;
-    if (endHour > 23) endHour = 23;
-    if (startHour > endHour) {
-        Serial.println("Error: Start hour must be less than or equal to end hour.");
+    if (startHour < 0 || startHour >= 24 || endHour <= startHour || endHour > 24) {
+        Serial.println("WeatherForecast: Invalid photoperiod; expected 0 <= start < end <= 24.");
         return;
     }
     
@@ -81,7 +79,7 @@ void WeatherForecast::calculateRemainingDLI() {
         Serial.print("HTTP Response Code: ");
         Serial.println(httpCode);
 
-        if (httpCode > 0) {
+        if (httpCode >= 200 && httpCode < 300) {
             Serial.print("Content-Length reported: ");
             Serial.println(http.getSize());
             
@@ -94,7 +92,8 @@ void WeatherForecast::calculateRemainingDLI() {
             JsonArray hourArr = dayZeroObj["hour"].to<JsonArray>();
             JsonObject hourFields = hourArr.add<JsonObject>();
 
-            // Set the specific data keys you want to keep
+            // Keep the provider's local timestamp so entries can be mapped by hour.
+            hourFields["time"] = true;
             hourFields["cloud"] = true;
             hourFields["condition"]["text"] = true;
             
@@ -109,14 +108,54 @@ void WeatherForecast::calculateRemainingDLI() {
             }
 
             JsonArray hourlyArray = doc["forecast"]["forecastday"][0]["hour"];
-            // Reset DLI values before processing new data
-            completeDayDLI = 0.0;
-            remainingDLI = 0.0;
-            photoperiodDLI = 0.0;
+            if (hourlyArray.size() != 24) {
+                Serial.print("Weather response contained an invalid hourly forecast. Expected 24 hours, got ");
+                Serial.println(hourlyArray.size());
+                http.end();
+                return;
+            }
+
+            std::array<int, 24> cloudByHour = {};
+            std::array<String, 24> conditionByHour = {};
+            std::array<bool, 24> hourPresent = {};
+            for (JsonVariant hour : hourlyArray) {
+                const char* localTime = hour["time"] | "";
+                int localHour = -1;
+                int localMinute = -1;
+                if (sscanf(localTime, "%*4d-%*2d-%*2d %d:%d", &localHour, &localMinute) != 2 ||
+                    localHour < 0 || localHour >= 24 || localMinute != 0 ||
+                    !hour["cloud"].is<int>() ||
+                    !hour["condition"]["text"].is<const char*>() ||
+                    hour["cloud"].as<int>() < 0 ||
+                    hour["cloud"].as<int>() > 100 ||
+                    hourPresent[localHour]) {
+                    Serial.println("Weather response contained invalid hourly forecast data.");
+                    http.end();
+                    return;
+                }
+
+                cloudByHour[localHour] = hour["cloud"].as<int>();
+                conditionByHour[localHour] = hour["condition"]["text"].as<String>();
+                hourPresent[localHour] = true;
+            }
+
+            for (bool present : hourPresent) {
+                if (!present) {
+                    Serial.println("Weather response did not contain a forecast for every local hour.");
+                    http.end();
+                    return;
+                }
+            }
+
+            double newCompleteDayDLI = 0.0;
+            double newRemainingDLI = 0.0;
+            double newPhotoperiodDLI = 0.0;
+            std::array<double, 24> newHourlyDLI = {};
             for (int h = 0; h < 24; h++) {
-                // Get the weather data for the hour
-                int cloudCover = hourlyArray[h]["cloud"] | 0;
-                String conditionText = hourlyArray[h]["condition"]["text"] | "";
+                int cloudCover = cloudByHour[h];
+                String conditionText = conditionByHour[h];
+                String normalizedCondition = conditionText;
+                normalizedCondition.toLowerCase();
 
                 Serial.print("Hour ");
                 Serial.print(h);
@@ -139,11 +178,14 @@ void WeatherForecast::calculateRemainingDLI() {
                 } 
                 // Handle the 100% / high-density cloud cover variations dynamically
                 else {
-                    if (conditionText.indexOf("Heavy rain") != -1 || conditionText.indexOf("Thunderstorm") != -1) {
+                    if (normalizedCondition.indexOf("heavy rain") != -1 ||
+                        normalizedCondition.indexOf("thunder") != -1) {
                         cloudMultiplier = 0.01;  // Extreme storm sky (99% light blocked)
-                    } else if (conditionText.indexOf("Moderate rain") != -1 || conditionText.indexOf("Nimbostratus") != -1) {
+                    } else if (normalizedCondition.indexOf("moderate rain") != -1 ||
+                               normalizedCondition.indexOf("nimbostratus") != -1) {
                         cloudMultiplier = 0.05;  // Very dark/stormy overcast (95% light blocked)
-                    } else if (conditionText.indexOf("Overcast") != -1 || conditionText.indexOf("Cloudy") != -1) {
+                    } else if (normalizedCondition.indexOf("overcast") != -1 ||
+                               normalizedCondition.indexOf("cloudy") != -1) {
                         cloudMultiplier = 0.15;  // Standard, thick low overcast (85% light blocked)
                     } else {
                         cloudMultiplier = 0.32;  // Thin/high overcast (Your default fallback)
@@ -156,16 +198,21 @@ void WeatherForecast::calculateRemainingDLI() {
 
                 // Accumulate into daily light integral moles
                 double hourDLI = ppfd * 3600.0 / 1000000.0;
-                completeDayDLI += hourDLI;
-                hourlyDLI[h] = hourDLI;
-                if (h >= startHour && h <= endHour) {
-                    photoperiodDLI += hourDLI;
-                    if(h >= timeManager.getHour()) {
-                        remainingDLI += hourDLI;
+                newCompleteDayDLI += hourDLI;
+                newHourlyDLI[h] = hourDLI;
+                if (h >= startHour && h < endHour) {
+                    newPhotoperiodDLI += hourDLI;
+                    if (h >= timeManager.getHour()) {
+                        newRemainingDLI += hourDLI;
                     }
                 }
-                recentSuccess = true;
             }
+
+            completeDayDLI = newCompleteDayDLI;
+            remainingDLI = newRemainingDLI;
+            photoperiodDLI = newPhotoperiodDLI;
+            hourlyDLI = newHourlyDLI;
+            recentSuccess = true;
         } else {
             Serial.print("HTTP request failed. Code: ");
             Serial.println(httpCode);
@@ -177,6 +224,8 @@ void WeatherForecast::calculateRemainingDLI() {
 
             Serial.println("Response body:");
             Serial.println(response);
+            http.end();
+            return;
         }
         http.end();
     } else {

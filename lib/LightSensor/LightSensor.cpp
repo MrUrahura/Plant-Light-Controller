@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <cmath>
 #include "LightSensor.h"
 #include "Pins.h"
 
@@ -33,7 +34,7 @@ double LightSensor::readPPFDLevel() const {
 bool LightSensor::tryReadPPFDLevel(double& ppfd) const {
     float lux = readLuxLevel();
 
-    if (lux < 0) {
+    if (!std::isfinite(lux) || lux < 0) {
         return false;
     }
 

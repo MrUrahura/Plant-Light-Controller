@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include "SettingsManager.h"
 #include "NetworkManager.h"
 #include "TimeManager.h"

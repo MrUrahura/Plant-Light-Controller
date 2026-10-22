@@ -45,7 +45,10 @@ void DLITracker::update() {
 
     // Convert PPFD to DLI (mol/m²/day)
     double ppfd;
-    if (!sensor.tryReadPPFDLevel(ppfd)) return;
+    if (!sensor.tryReadPPFDLevel(ppfd)) {
+        lastUpdateTime = now;
+        return;
+    }
     currentDLI += ppfd * elapsedSeconds / 1000000.0;
     
     lastUpdateTime = now;

@@ -29,6 +29,7 @@ bool wasInPhotoperiod = false;
 
 // Sensor readiness flag
 bool sensorReady = false;
+bool sensorInitialized = false;
 
 // Enum to represent the state of the system
 enum class SystemState {
@@ -198,12 +199,21 @@ void loop() {
         }
         lastSensorCheck = now;
 
-        // Retry sensor initialization periodically in case it was not ready at startup.
+        // Initialize once, then let the continuous-mode sensor complete a
+        // conversion before retrying a sample on a later loop iteration.
         double ppfd;
-        sensorReady = sensor.begin() && sensor.tryReadPPFDLevel(ppfd);
+        if (!sensorInitialized) {
+          sensorInitialized = sensor.begin();
+          if (!sensorInitialized) {
+            Serial.println("System: Light sensor initialization failed. Retrying...");
+            break;
+          }
+        }
+
+        sensorReady = sensor.tryReadPPFDLevel(ppfd);
 
         if (!sensorReady) {
-          Serial.println("System: Light sensor is not ready. Retrying...");
+          Serial.println("System: Light sensor sample is not ready. Retrying without reinitializing...");
           break;
         }
       }
@@ -226,11 +236,13 @@ void loop() {
             weatherForecastRead = true;
           }
           else {
-            Serial.println("System: Initial weather update failed. Continuing light control and retrying.");
+            Serial.println("System: Initial weather update failed. Retrying before starting light control.");
           }
 
-          // A missing forecast should not prevent the initial physical scan.
-          // LightController uses its PPFD target when no planned DLI is available.
+          if (!weatherForecastRead) {
+            break;
+          }
+
           wasInPhotoperiod = timeManager.withinPhotoperiod();
           currentState = SystemState::READY;
         }
@@ -251,6 +263,11 @@ void loop() {
       if (!timeManager.isTimeSynced()) {
         Serial.println("System: Time synchronization lost. Pausing light control...");
         currentState = SystemState::WAIT_FOR_TIME_SYNC;
+        break;
+      }
+
+      if (!weatherForecastRead) {
+        currentState = SystemState::WAIT_FOR_WEATHER_UPDATE;
         break;
       }
 

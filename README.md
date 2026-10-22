@@ -74,10 +74,11 @@ The main modules are under `lib/`:
 Plant settings, Wi-Fi settings, servo timings, and schedule information are
 stored in ESP32 Preferences (non-volatile storage), so they normally survive a
 restart. Complete setup currently requires Wi-Fi credentials, a WeatherAPI
-key, a non-zero location, a plant profile, and synchronized time for scheduled
-operation. If a forecast request fails after setup, the controller can still
-optimize using its plant PPFD target. Light optimization is limited to the
-configured photoperiod; the controller closes shades after that period.
+key, a non-zero location, a plant profile, synchronized time, and a successful
+initial forecast request before light optimization can start. If that request
+fails, the controller retries the weather request and waits instead of
+optimizing with only the plant PPFD target. Light optimization is limited to
+the configured photoperiod; the controller closes shades after that period.
 
 ## Hardware and wiring
 
