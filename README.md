@@ -215,10 +215,10 @@ JSON field names/array layout in sync when changing the protocol.
 
 ### Results
 <img src="images/experiment/Final_Comparison.png" alt="Final Comparison Image" width="600">
-As seen in the image, the radishes in the experimental group in my custom box (despite
-some being accidentaly planted closer together) grew much more and much larger compared
-to the control group. Despite the small experimental groups due to the limited scale of
-the prototype, I have high confidence in these results since I personally ensured that
-every part of their growth other than the presence or lack thereof of the box were strictly
-identical. This shows the success of my box in increasing growth efficiency by controlling
-the sunlight received which is what it set out to do.
+As seen in the image, the radishes in the experimental group in my custom box grew much more and 
+much larger in the time frame compared to the control group (despite some in the experimental group being
+planted slightly closer together). Despite the small experimental and control groups due to the limited
+scale of the prototype, I have high confidence in the validity of these results since I personally ensured
+that every part of their growth other than the presence or lack thereof of the box were strictly identical.
+This shows the success of my box in increasing growth efficiency by controlling the sunlight received
+which is what it set out to do.
